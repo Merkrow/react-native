@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, TextInput, Button, ScrollView, } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, } from 'react-native';
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
 import { GooglePlacesAutocomplete } from './autocomplete';
@@ -23,12 +23,15 @@ export default class App extends React.Component {
       polylines: [],
       search: '',
       selectedInput: null,
+      lastField: 1,
     }
     this.onRegionChange = this.onRegionChange.bind(this);
     this.onMapPress = this.onMapPress.bind(this);
     this.onMarkerPress = this.onMarkerPress.bind(this);
     this.autocompletePress = this.autocompletePress.bind(this);
     this.openAutocomplete = this.openAutocomplete.bind(this);
+    this.onAucompletePressIndex = this.onAucompletePressIndex.bind(this);
+    this.blurAutocomplete = this.blurAutocomplete.bind(this);
   }
 
   async getDirections(startLoc, destinationLoc) {
@@ -166,30 +169,54 @@ export default class App extends React.Component {
     const index = markers.indexOf(null);
     if (index === -1) return;
     markers[index] = marker;
-      this.setState({ markers: markers });
+      this.setState({ markers, selector: {}, });
       if (index > 0) {
         this.setPolylines(markers.slice(0, index + 1));
       }
   }
 
-  onRemoveTextPress(index) {
+  addMarkerByIndex(marker, index) {
     const { markers } = this.state;
+    markers[index] = marker;
+    this.setState({ markers });
+    const pol = markers.filter(marker => marker !== null);
+    if (pol.length > 1) {
+      this.setPolylines(pol);
+    }
+  }
+
+  onRemoveTextPress(index) {
+    const { markers, lastField } = this.state;
     const newMarkers = markers.filter((marker, i) => i !== index).concat(null);
-    this.setState({ markers: newMarkers, polylines: [] });
+    this.setState({ markers: newMarkers, polylines: [], lastField: lastField === 1 ? lastField : lastField - 1 });
     const polyline = newMarkers.filter(marker => marker !== null);
-    console.log(polyline);
     return polyline.length > 1 ? this.setPolylines(polyline) : null;
   }
 
-  openAutocomplete(i) {
+  openAutocomplete(i, marker = null) {
+    this.setState({ selectedInput: { index: i, marker }});
+  }
+
+  addNextField() {
+    const { lastField } = this.state;
+    this.setState({ lastField: this.state.lastField + 1 });
+  }
+
+  goToUserLocation = () => {
+    this.setState({ region:
+      Object.assign({}, this.state.userCoordinates, {
+        latitudeDelta: 0.004622,
+        longitudeDelta: 0.00681
+      })
+    });
   }
 
   renderMarkerInfoRow(marker, i) {
-    if (marker === null && i > 1) return;
+    if (marker === null && i > this.state.lastField) return;
     if (marker === null) {
       return (
         <View key={i} style={styles.markersListItem}>
-          <Text style={styles.markersListText} onPress={() => this.openAutocomplete(i)}>{i === 0 ? 'Enter Start' : 'Enter Desctination'}</Text>
+          <Text style={styles.markersListText} onPress={() => this.openAutocomplete(i)}>{i === 0 ? 'From' : 'To'}</Text>
         </View>
       )
     }
@@ -197,26 +224,64 @@ export default class App extends React.Component {
     return (
       <View key={i} style={styles.markersListItem}>
         <Text style={styles.markersListText} onPress={() => this.openAutocomplete(i, marker)}>{`${street}, ${streetNumber}`}</Text>
-        <Button
+        {this.state.markers[i + 1] !== null || i === 0 || this.state.lastField > i ?
+          <Text
           onPress={() => this.onRemoveTextPress(i)}
-          title='Remove'
-          color='#39f980'
           style={{
-            width: 10,
-            height: 10,
-            borderColor: '#39f980',
-            borderWidth: 2,
-            borderStyle: 'solid',
-            backgroundColor: '#fff',
-          }}
-        />
+            textAlign: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0)',
+            fontSize: 25,
+            color: '#1492db',
+            position: 'absolute',
+            right: 10,
+            top: 10,
+          }}>—</Text> :
+          <Text
+          onPress={() => this.addNextField()}
+          style={{
+            textAlign: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0)',
+            fontSize: 25,
+            color: '#1492db',
+            position: 'absolute',
+            right: 10,
+            top: 10,
+          }}>+</Text>
+        }
       </View>
     )
   }
 
+  async onAucompletePressIndex(data, details) {
+    const { lat, lng } = details.geometry.location;
+    const { index } = this.state.selectedInput;
+    const description = await this.getAddress(`${lat}, ${lng}`);
+    this.addMarkerByIndex({ coordinate: { longitude: lng, latitude: lat }, description }, index)
+    this.setState({
+      selector:
+        { coordinate:
+          { longitude: lng, latitude: lat },
+          description
+        },
+      region: {
+        latitudeDelta: 0.004622,
+        longitudeDelta: 0.00681,
+        latitude: lat,
+        longitude: lng,
+      },
+      selectedInput: null,
+    });
+    return data;
+  }
+
+  blurAutocomplete() {
+    this.setState({ selectedInput: null });
+  }
+
   render() {
     const { latitude, longitude } = this.state.region;
-    const { userCoordinates } = this.state;
+    const { userCoordinates, markers } = this.state;
+    const markersLength = markers.filter(marker => marker !== null).length;
     return (
       <View style={styles.container}>
         <MapView
@@ -242,22 +307,20 @@ export default class App extends React.Component {
               showCallout={true}
             >
               <MapView.Callout {...this.state.selector}>
-                <View>
-                  <Text>{this.state.selector.description.street + ', ' + this.state.selector.description.streetNumber}</Text>
+                <View style={{ position: 'relative', }}>
+                  <Text style={{ marginRight: 30, }}>{this.state.selector.description.street + ', ' + this.state.selector.description.streetNumber}</Text>
                   {this.state.markers.indexOf(null) === -1 ? null :
-                    <Button
-                      onPress={() => this.addMarker(this.state.selector)}
-                      title='Add'
-                      color='#39f980'
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderColor: '#39f980',
-                        borderWidth: 2,
-                        borderStyle: 'solid',
-                        backgroundColor: '#fff',
-                      }}
-                    />
+                    <View
+                    style={{
+                      position: 'absolute',
+                      borderWidth: 1,
+                      right: 0,
+                      borderRadius: 100,
+                      borderColor: '#e1e1e1',
+                      height: 20,
+                      width: 20,
+                    }}>
+                    <Text onPress={() => this.addMarker(this.state.selector)} style={{ backgroundColor: 'rgba(0, 0, 0, 0)', fontSize: 20, textAlign: 'center', color: '#1492db', padding: 0, margin: 0, lineHeight: 20, }}>+</Text></View>
                   }
                 </View>
               </MapView.Callout>
@@ -280,11 +343,12 @@ export default class App extends React.Component {
             <View>
               <MapView.Circle center={userCoordinates} radius={50} fillColor='rgba(151, 196, 239, 0.5)' strokeWidth={1} strokeColor='rgba(151, 196, 239, 0.5)' />
               <MapView.Marker coordinate={userCoordinates}>
-                <View style={{
+                <View
+                style={{
                   height: 20,
                   width: 20,
                   backgroundColor: '#428ff4',
-                  borderRadius: 50,
+                  borderRadius: 10,
                   borderWidth: 3,
                   borderColor: '#fff',
                   borderStyle: 'solid',
@@ -293,6 +357,51 @@ export default class App extends React.Component {
             </View>
           }
         </MapView>
+        {
+          this.state.selectedInput ?
+          <GooglePlacesAutocomplete
+            placeholder='Search'
+            minLength={2}
+            filterReverseGeocodingByTypes={['address']}
+            query={{
+              key: API_KEY,
+              language: 'en',
+              types: 'geocode',
+              location: `${latitude}, ${longitude}`,
+              radius: 50000,
+            }}
+            getDefaultValue={() => {
+              const { marker, index } = this.state.selectedInput;
+              if (!marker) {
+                return '';
+              } else {
+                const { city, country, street, streetNumber } = marker.description;
+                const value = `${street}, ${streetNumber}, ${city}, ${country}`;
+                return value;
+              }
+            }}
+            debounce={200}
+            fetchDetails={true}
+            autoFocus={true}
+            styles={{
+              container: {
+                backgroundColor: '#fff',
+              },
+              textInputContainer: {
+                backgroundColor: '#fff',
+                borderTopWidth: 0,
+                borderBottomWidth: 0,
+                height: 75,
+                position: 'relative',
+                borderBottomColor: '#dad9de',
+                borderBottomWidth: 1,
+              },
+            }}
+            onPress={this.onAucompletePressIndex}
+            closeAutocomplete={this.blurAutocomplete}
+          /> :
+          null
+        }
         <GooglePlacesAutocomplete
           placeholder='Search'
           minLength={2}
@@ -310,22 +419,32 @@ export default class App extends React.Component {
           styles={{
             container: {
               flex: 0,
+              backgroundColor: '#fff',
             },
             textInputContainer: {
-              backgroundColor: 'rgba(0,0,0,0)',
+              backgroundColor: '#fff',
               borderTopWidth: 0,
-              borderBottomWidth:0
-            },
-            textInput: {
-              marginLeft: 30,
-              marginRight: 30,
-              height: 38,
-              color: '#5d5d5d',
-              fontSize: 16
+              borderBottomWidth: 0,
+              height: 75,
+              position: 'relative',
+              borderBottomColor: '#dad9de',
+              borderBottomWidth: 1,
             },
           }}
           onPress={this.autocompletePress}
         />
+        <TouchableOpacity
+        onPress={this.goToUserLocation}
+        style={{
+          position: 'absolute',
+          right: 5,
+          borderRadius: 50,
+          backgroundColor: '#fff',
+          height: 50,
+          width: 50,
+          bottom: 130 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+        }}>
+        </TouchableOpacity>
         <ScrollView style={styles.markersList}>
           {this.state.markers.map(this.renderMarkerInfoRow.bind(this))}
         </ScrollView>
@@ -354,16 +473,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 80,
+    borderTopWidth: 1,
+    borderTopColor: '#dad9de',
   },
   markersListItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#000',
-    borderStyle: 'solid',
+    position: 'relative',
   },
   markersListText: {
-    height: 40,
-    lineHeight: 40,
-    fontSize: 18,
+    height: 56,
+    lineHeight: 55,
+    fontSize: 15,
+    color: '#bababa',
+    paddingLeft: 15,
   },
 });
