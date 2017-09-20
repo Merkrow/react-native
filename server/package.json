@@ -1,0 +1,24 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon ./server.js"
+  },
+  "author": "merkrow",
+  "license": "ISC",
+  "dependencies": {
+    "graphql": "^0.11.3",
+    "graphql-relay": "^0.5.2",
+    "graphql-sequelize": "^5.4.2",
+    "graphql-server-koa": "^1.1.2",
+    "koa": "^2.3.0",
+    "koa-bodyparser": "^4.2.0",
+    "koa-router": "^7.2.1",
+    "koa2-cors": "^2.0.3",
+    "pg": "^7.3.0",
+    "sequelize": "^4.8.4"
+  }
+}

@@ -397,6 +397,7 @@ export default class App extends React.Component {
                 borderBottomWidth: 1,
               },
             }}
+            nearbyPlacesAPI='GoogleReverseGeocoding'
             onPress={this.onAucompletePressIndex}
             closeAutocomplete={this.blurAutocomplete}
           /> :

@@ -679,6 +679,7 @@ export default class GooglePlacesAutocomplete extends Component {
 
   _closeAutocomplete = () => {
     this._onBlur();
+    this.setState({ focused: false, dataSource: [], text: '' });
     if (this.props.closeAutocomplete) {
       this.props.closeAutocomplete();
     }
