@@ -2,6 +2,7 @@ const Koa = require('koa');
 const bodyParser = require('koa-bodyparser');
 const koaRouter = require('koa-router');
 const koaBody = require('koa-bodyparser');
+const text = require('textbelt');
 
 const schema = require('./src/schema');
 const db = require('./src/db');

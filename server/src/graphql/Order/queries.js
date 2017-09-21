@@ -4,10 +4,10 @@ const {
     GraphQLNonNull
 } = require('graphql');
 
-const { UserModel, UserType, UserInput } = require('../../models/User');
+const { OrderModel, OrderType, OrderInput } = require('../../models/Order');
 
-const User = {
-  type: UserType,
+const Order = {
+  type: OrderType,
   args: {
     id: {
       name: 'id',
@@ -15,19 +15,19 @@ const User = {
     }
   },
   resolve (root, params, options) {
-    return UserModel
+    return OrderModel
       .findById(params.id);
   }
 };
-const Users = {
-  type: new GraphQLList(UserType),
+const Orders = {
+  type: new GraphQLList(OrderType),
   args: {},
   resolve (root, params, options) {
-    return UserModel
+    return OrderModel
       .findAll();
   }
 };
 module.exports = {
-  User,
-  Users,
+  Order,
+  Orders,
 }

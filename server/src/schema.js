@@ -3,15 +3,15 @@ const {
     GraphQLSchema
 } = require('graphql');
 
-const User = require('./graphql/User');
+const { User, Order } = require('./graphql');
 
 module.exports = new GraphQLSchema({
     query: new GraphQLObjectType({
-        name: 'Query',      // произвольное имя для API библитеки
-        fields: User.queries, // поля из файла queries.js
+        name: 'Query',
+        fields: Object.assign({}, Order.queries, User.queries),
     }),
     mutation: new GraphQLObjectType({
         name: 'Mutation',
-        fields: User.mutation,
+        fields: Object.assign({}, Order.mutation, User.mutation),
     })
 });

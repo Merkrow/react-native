@@ -6,39 +6,118 @@ const {
     GraphQLInputObjectType,
     GraphQLNonNull,
     GraphQLString,
-    GraphQLID
+    GraphQLID,
+    GraphQLInt,
 } = require('graphql');
 
 const User = {
   role: Sequelize.STRING,
-  phoneNumber: Sequelize.STRING,
+  phoneNumber: {
+    type: Sequelize.STRING,
+    allowNull: false,
+    unique: {
+      args: true,
+      msg: 'Phone number already in use!',
+    }
+  },
+  mobileId: Sequelize.STRING,
+  orders: {
+    type: Sequelize.STRING,
+    defaultValue: '[]',
+    get() {
+      const orders = this.getDataValue('orders');
+      return JSON.parse(oreders);
+    },
+    set(val) {
+      return this.setDataValue('orders', JSON.stringify(val));
+    }
+  },
+  favoritePlaces: {
+    type: Sequelize.STRING,
+    defaultValue: '[]',
+    get() {
+      const places = this.getDataValue('favoritePlaces');
+      return JSON.parse(oreders);
+    },
+    set(val) {
+      return this.setDataValue('favoritePlaces', JSON.stringify(val));
+    }
+  },
+  name: Sequelize.STRING,
+  email: {
+    type: Sequelize.STRING,
+    validation: {
+      isEmail: true,
+      msg: 'Wrong email!',
+    }
+  },
+  pw: {
+    type: Sequelize.INTEGER,
+    defaultValue: Math.floor(1000 + Math.random() * 9000),
+  }
 }
 
 module.exports.UserModel = sequelize.define('users', User);
 
 module.exports.UserType = new GraphQLObjectType({
-    name: 'User',
-    fields: {
-        _id: {
-            type: new GraphQLNonNull(GraphQLID)
-        },
-        role: {
-            type: GraphQLString
-        },
-        phoneNumber: {
-            type: GraphQLString
-        }
+  name: 'User',
+  fields: {
+    _id: {
+      type: new GraphQLNonNull(GraphQLID)
+    },
+    id: {
+      type: GraphQLInt
+    },
+    role: {
+      type: GraphQLString
+    },
+    phoneNumber: {
+      type: GraphQLString
+    },
+    mobileId: {
+      type: GraphQLString
+    },
+    name: {
+      type: GraphQLString
+    },
+    email: {
+      type: GraphQLString
+    },
+    favoritePlaces: {
+      type: GraphQLString
+    },
+    orders: {
+      type: GraphQLString
     }
+  }
 });
 
 module.exports.UserInput = new GraphQLInputObjectType({
-    name: "UserInput",
-    fields: {
-        role: {
-            type: GraphQLString
-        },
-        phoneNumber: {
-            type: GraphQLString
-        }
-    }
+  name: "UserInput",
+  fields: {
+    id: {
+      type: GraphQLInt
+    },
+    role: {
+      type: GraphQLString
+    },
+    phoneNumber: {
+      type: GraphQLString
+    },
+    mobileId: {
+      type: GraphQLString
+    },
+    name: {
+      type: GraphQLString
+    },
+    email: {
+      type: GraphQLString
+    },
+    favoritePlace: {
+      type: GraphQLString
+    },
+    order: {
+      type: GraphQLString
+    },
+  }
 });

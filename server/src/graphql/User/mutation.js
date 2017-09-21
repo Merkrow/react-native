@@ -1,6 +1,7 @@
 const {
     GraphQLNonNull,
     GraphQLBoolean,
+    GraphQLID,
 } = require('graphql');
 const { UserModel, UserType, UserInput } = require('../../models/User');
 
@@ -11,7 +12,7 @@ const UserCreate = {
     data: {
       name: "data",
       type: new GraphQLNonNull(UserInput)
-    }
+    },
   },
   async resolve (root, params, options) {
     const userModel = new UserModel(params.data);
@@ -23,6 +24,24 @@ const UserCreate = {
   }
 };
 
+const UserUpdate = {
+  description: "Update user",
+  type: UserType,
+  args: {
+    data: {
+      name: "data",
+      type: new GraphQLNonNull(UserInput)
+    },
+  },
+  async resolve (root, params, options) {
+    await UserModel.update(params.user, {
+        where: { id : params.user.id }
+      });
+    return UserModel.findById(params.user.id);
+  }
+}
+
 module.exports = {
-    UserCreate: UserCreate,
+    UserCreate,
+    UserUpdate,
 }
