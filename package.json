@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@mapbox/polyline": "^0.2.0",
+    "apollo-client": "^1.9.3",
     "expo": "^20.0.0",
     "qs": "^6.5.1",
     "react": "16.0.0-alpha.12",

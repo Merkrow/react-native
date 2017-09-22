@@ -26,7 +26,7 @@ const User = {
     defaultValue: '[]',
     get() {
       const orders = this.getDataValue('orders');
-      return JSON.parse(oreders);
+      return JSON.parse(orders);
     },
     set(val) {
       return this.setDataValue('orders', JSON.stringify(val));
@@ -37,7 +37,7 @@ const User = {
     defaultValue: '[]',
     get() {
       const places = this.getDataValue('favoritePlaces');
-      return JSON.parse(oreders);
+      return JSON.parse(places);
     },
     set(val) {
       return this.setDataValue('favoritePlaces', JSON.stringify(val));

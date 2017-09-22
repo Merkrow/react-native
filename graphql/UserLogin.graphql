@@ -1,0 +1,3 @@
+mutation AuthUser($phoneNumber: String!) {
+  UserAuthRequest(data: { phoneNumber: $phoneNumber })
+}
