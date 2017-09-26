@@ -8,6 +8,7 @@ const {
     GraphQLString,
     GraphQLID,
     GraphQLInt,
+    GraphQLList,
 } = require('graphql');
 
 const User = {
@@ -84,10 +85,13 @@ module.exports.UserType = new GraphQLObjectType({
       type: GraphQLString
     },
     favoritePlaces: {
-      type: GraphQLString
+      type: new GraphQLList(GraphQLString)
     },
     orders: {
-      type: GraphQLString
+      type: new GraphQLList(GraphQLString)
+    },
+    pw: {
+      type: GraphQLInt
     }
   }
 });
@@ -114,10 +118,13 @@ module.exports.UserInput = new GraphQLInputObjectType({
       type: GraphQLString
     },
     favoritePlace: {
-      type: GraphQLString
+      type: new GraphQLList(GraphQLString)
     },
     order: {
-      type: GraphQLString
+      type: new GraphQLList(GraphQLString)
+    },
+    pw: {
+      type: GraphQLInt
     },
   }
 });

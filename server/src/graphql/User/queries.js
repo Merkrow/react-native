@@ -19,6 +19,7 @@ const User = {
       .findById(params.id);
   }
 };
+
 const Users = {
   type: new GraphQLList(UserType),
   args: {},

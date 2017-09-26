@@ -1,15 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, Animated, } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, } from 'react-native';
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
-import { graphql, gql } from 'react-apollo'
+import { graphql, gql, compose } from 'react-apollo'
 import PropTypes from 'prop-types';
 
-const authUser = gql`
-  mutation AuthUser($phoneNumber: String!, $email: String!) {
-    UserAuthRequest(data: { phoneNumber: $phoneNumber, email: $email })
-  }`
-
+import Auth from './auth';
+import Profile from './profile';
 import { GooglePlacesAutocomplete } from './autocomplete';
 
 const API_KEY = 'AIzaSyB01muOUPXMrSoNJYQVS3aXaNgKQF-b9zA';
@@ -34,12 +31,9 @@ class Container extends React.Component {
       lastField: 1,
       showMenu: false,
       xPosition: new Animated.Value(0),
-      userForm: {
-        email: '',
-        phoneNumber: '',
-        code: '',
-      },
-      waitPassword: false,
+      showAuthForm: false,
+      user: null,
+      showProfile: false,
     }
     this.onRegionChange = this.onRegionChange.bind(this);
     this.onMapPress = this.onMapPress.bind(this);
@@ -49,6 +43,40 @@ class Container extends React.Component {
     this.onAucompletePressIndex = this.onAucompletePressIndex.bind(this);
     this.blurAutocomplete = this.blurAutocomplete.bind(this);
     this.triggerMenu = this.triggerMenu.bind(this);
+    this.onCompleteAuth = this.onCompleteAuth.bind(this);
+    this.saveUser = this.saveUser.bind(this);
+    this.getUser = this.getUser.bind(this);
+  }
+
+  onCompleteAuth(user) {
+    if (user) {
+      this.updateUser(user);
+    }
+    this.toggleAuthForm();
+  }
+
+  updateUser = (user) => {
+    this.setState({ user });
+    this.saveUser(user);
+  }
+
+  async saveUser(user) {
+    try {
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+    } catch (error) {
+      throw new Error('Error saving user!');
+    }
+  }
+
+  async getUser() {
+    try {
+      const user = await AsyncStorage.getItem('user');
+      if (user !== null) {
+        this.setState({ user: JSON.parse(user) });
+      }
+    } catch(error) {
+      throw new Error('Error gettin user!');
+    }
   }
 
   async getDirections(startLoc, destinationLoc) {
@@ -98,6 +126,7 @@ class Container extends React.Component {
 
   componentDidMount() {
     window.setInterval(this.setCurrentPos.bind(this), 10000);
+    this.getUser();
     navigator.geolocation.getCurrentPosition(pos => {
       const coords = {
         latitude: pos.coords.latitude,
@@ -195,6 +224,7 @@ class Container extends React.Component {
   addMarkerByIndex(marker, index) {
     const { markers } = this.state;
     markers[index] = marker;
+    console.log(marker);
     this.setState({ markers });
     const pol = markers.filter(marker => marker !== null);
     if (pol.length > 1) {
@@ -234,7 +264,7 @@ class Container extends React.Component {
         this.state.xPosition,
         {
           toValue: 250,
-          duration: 2000,
+          duration: 1000,
         }
       ).start();
     } else {
@@ -242,7 +272,7 @@ class Container extends React.Component {
         this.state.xPosition,
         {
           toValue: 0,
-          duration: 2000,
+          duration: 1000,
         }
       ).start();
     }
@@ -316,18 +346,23 @@ class Container extends React.Component {
     this.setState({ selectedInput: null });
   }
 
-  registerUser = async () => {
-    const { phoneNumber, email } = this.state.userForm;
-    const res = await this.props.authUser({
-      variables: { phoneNumber, email }
-    })
-    if (res.data.UserAuthRequest) {
-      this.setState({ waitPassword: true });
-    }
+  toggleAuthForm = () => {
+    this.setState({ showAuthForm: !this.state.showAuthForm });
   }
 
-  sendCode = async () => {
-    console.log(this.state.userForm.code);
+  logout = () => {
+    this.setState({ user: null });
+  }
+
+  toggleProfile = () => {
+    this.setState({ showProfile: !this.state.showProfile });
+  }
+
+  onUserUpdateComplete = (user) => {
+    if (user) {
+      this.updateUser(user);
+    }
+    this.toggleProfile();
   }
 
   render() {
@@ -338,6 +373,8 @@ class Container extends React.Component {
       <View style={styles.container}>
         <Animated.View style={[{left: 0, width: this.state.xPosition, top: 0, bottom: 0, backgroundColor: '#2f2f30', position: 'absolute', }]}>
           <View style={{ height: 75, backgroundColor: '#1492db', }}>
+            { this.state.user ? <Text style={{ position: 'absolute', top: 30, left: 30 }} onPress={this.logout}>{`Sign out ${this.state.user.email}`}</Text> : <Text style={{ position: 'absolute', top: 30, left: 30 }} onPress={this.toggleAuthForm}>Sign in</Text>}
+            { this.state.user ? <Text style={{ position: 'absolute', bottom: 5, right: 5 }} onPress={this.toggleProfile}>Profile</Text> : null }
           </View>
           <View style={styles.menuRow}>
             <Text style={styles.menuText}>My trips</Text>
@@ -346,7 +383,7 @@ class Container extends React.Component {
             <Text style={styles.menuText}>My addresses</Text>
           </View>
           <View style={styles.menuRow}>
-            <Text style={styles.menuText}>Service Support</Text>
+            <Text onPress={() => Linking.openURL('mailto:react.native.taxi@gmail.com?subject=Support&body=body')} style={styles.menuText}>Service Support</Text>
           </View>
         </Animated.View>
         <Animated.View style={[styles.mapView, { left: this.state.xPosition, top: 0, right: 0, bottom: 0, }]}>
@@ -517,34 +554,8 @@ class Container extends React.Component {
             {this.state.markers.map(this.renderMarkerInfoRow.bind(this))}
           </ScrollView>
         </Animated.View>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center',backgroundColor: '#fff'}}>
-          <View>
-            <TextInput
-              placeholder="phone number"
-              style={{ borderWidth: 2, borderColor: '#1492db', marginTop: 10, padding: 5 }}
-              onChangeText={(phoneNumber) => this.setState({ userForm: { ...this.state.userForm, phoneNumber }})}
-            />
-            <TextInput
-              placeholder="email"
-              style={{ borderWidth: 2, borderColor: '#1492db', marginTop: 10, padding: 5 }}
-              onChangeText={(email) => this.setState({ userForm: { ...this.state.userForm, email }})}
-            />
-            <Button
-              title="Submit"
-              onPress={this.registerUser}
-            />
-            <TextInput
-              placeholder="code"
-              style={{ borderWidth: 2, borderColor: '#1492db', marginTop: 10, padding: 5 }}
-              onChangeText={(code) => this.setState({ userForm: { ...this.state.userForm, code }})}
-              editable={this.state.waitPassword}
-            />
-            <Button
-              title="Submit Code"
-              onPress={this.sendCode}
-            />
-          </View>
-        </View>
+        { this.state.showAuthForm && <Auth onComplete={this.onCompleteAuth} /> }
+        { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/>}
       </View>
     );
   }
@@ -560,12 +571,6 @@ const styles = StyleSheet.create({
   },
   mapView: {
     position: 'absolute',
-  },
-  menuRow: {
-
-  },
-  menuText: {
-    color: '#fff',
   },
   map: {
     left: 0,
@@ -596,6 +601,4 @@ const styles = StyleSheet.create({
 Container.propTypes = {
 }
 
-const ContainerWithData = graphql(authUser, {name: 'authUser'})(Container);
-
-export default ContainerWithData;
+export default Container;

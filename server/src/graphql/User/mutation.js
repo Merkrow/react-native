@@ -2,6 +2,7 @@ const {
     GraphQLNonNull,
     GraphQLBoolean,
     GraphQLID,
+    GraphQLString,
 } = require('graphql');
 const { UserModel, UserType, UserInput } = require('../../models/User');
 
@@ -34,6 +35,7 @@ const UserUpdate = {
     },
   },
   async resolve (root, params, options) {
+    console.log('aaa');
     const newUser = await UserModel.update(params.data, {
         where: { id : params.data.id },
       });
@@ -63,7 +65,35 @@ const UserAuthRequest = {
       })();
       return true;
     } else {
-      throw new Error('No user with this phone number!');
+      const userModel = new UserModel(params.data);
+      const newUser = await userModel.save();
+      const send = require('gmail-send')({
+        user: 'react.native.taxi@gmail.com',
+        pass: 'qawsed123',
+        to: `${newUser.email}`,
+        subject: 'password to login',
+        text: `Your code is ${newUser.pw}`,
+      })();
+      return true;
+    }
+  }
+}
+
+const LoginWithPw = {
+  description: "Login user with pw",
+  type: UserType,
+  args: {
+    data: {
+      name: "data",
+      type: new GraphQLNonNull(UserInput)
+    },
+  },
+  async resolve(root, params, options) {
+    const User = await UserModel.findOne({ where: { phoneNumber: params.data.phoneNumber }});
+    if (User.pw === params.data.pw) {
+      return User;
+    } else {
+      throw new Error("Code doesn't match!");
     }
   }
 }
@@ -72,4 +102,5 @@ module.exports = {
     UserCreate,
     UserUpdate,
     UserAuthRequest,
+    LoginWithPw,
 }
