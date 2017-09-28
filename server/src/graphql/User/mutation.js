@@ -35,7 +35,6 @@ const UserUpdate = {
     },
   },
   async resolve (root, params, options) {
-    console.log('aaa');
     const newUser = await UserModel.update(params.data, {
         where: { id : params.data.id },
       });

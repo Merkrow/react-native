@@ -23,7 +23,7 @@ const User = {
   },
   mobileId: Sequelize.STRING,
   orders: {
-    type: Sequelize.STRING,
+    type: Sequelize.TEXT,
     defaultValue: '[]',
     get() {
       const orders = this.getDataValue('orders');
@@ -34,7 +34,7 @@ const User = {
     }
   },
   favoritePlaces: {
-    type: Sequelize.STRING,
+    type: Sequelize.TEXT,
     defaultValue: '[]',
     get() {
       const places = this.getDataValue('favoritePlaces');

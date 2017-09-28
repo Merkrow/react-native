@@ -6,7 +6,7 @@ const { OrderModel, OrderType, OrderInput } = require('../../models/Order');
 
 const OrderCreate = {
   description: "Create new order",
-  type: GraphQLBoolean,
+  type: OrderType,
   args: {
     data: {
       name: "data",
@@ -14,12 +14,13 @@ const OrderCreate = {
     }
   },
   async resolve (root, params, options) {
+    console.log(params.data);
     const orderModel = new OrderModel(params.data);
     const newOrder = await orderModel.save();
     if (!newOrder) {
       throw new Error('Error adding new order');
     }
-    return true;
+    return newOrder;
   }
 };
 

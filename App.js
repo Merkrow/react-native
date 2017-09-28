@@ -2,9 +2,10 @@ import React from 'react';
 import { ApolloProvider, createNetworkInterface, ApolloClient } from 'react-apollo'
 
 import Container from './components/container';
+import config from './config/config';
 
 const networkInterface = createNetworkInterface({
-  uri: 'http://192.168.164.123:3000/graphql',
+  uri: `${config.api_url}/graphql`,
 });
 const client = new ApolloClient({
   networkInterface

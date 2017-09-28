@@ -9,21 +9,26 @@ const {
     GraphQLID,
     GraphQLList,
     GraphQLInt,
+    GraphQLFloat,
 } = require('graphql');
 
 const Order = {
   path: {
-    type: Sequelize.STRING,
+    type: Sequelize.TEXT,
     get: function() {
-      return JSON.parse(this.getDataValue('myArrayField'));
+      console.log(this.getDataValue('path'));
+      return JSON.parse(this.getDataValue('path'));
     },
     set: function(val) {
-      return this.setDataValue('myArrayField', JSON.stringify(val));
+      return this.setDataValue('path', JSON.stringify(val));
     },
   },
-  status: Sequelize.STRING,
-  driverId: Sequelize.STRING,
-  customerId: Sequelize.STRING,
+  status: {
+    type: Sequelize.STRING,
+    defaultValue: 'active',
+  },
+  driverId: Sequelize.INTEGER,
+  customerId: Sequelize.INTEGER,
   cost: Sequelize.STRING,
 }
 
@@ -31,10 +36,10 @@ const Coordinate = new GraphQLObjectType({
   name: 'Coordinate',
   fields: {
     longitude: {
-      type: GraphQLString
+      type: GraphQLFloat
     },
     latitude: {
-      type: GraphQLString
+      type: GraphQLFloat
     },
   }
 });
@@ -59,6 +64,9 @@ module.exports.OrderType = new GraphQLObjectType({
     _id: {
       type: new GraphQLNonNull(GraphQLID)
     },
+    id: {
+      type: GraphQLInt
+    },
     path: {
       type: new GraphQLList(OrderMarker)
     },
@@ -81,10 +89,10 @@ const CoordinateInput = new GraphQLInputObjectType({
   name: 'CoordinateInput',
   fields: {
     longitude: {
-      type: GraphQLString
+      type: GraphQLFloat
     },
     latitude: {
-      type: GraphQLString
+      type: GraphQLFloat
     },
   }
 });
@@ -106,6 +114,9 @@ module.exports.OrderInput = new GraphQLInputObjectType({
   fields: {
     path: {
       type: new GraphQLList(OrderMarkerInput)
+    },
+    id: {
+      type: GraphQLInt
     },
     status: {
       type: GraphQLString

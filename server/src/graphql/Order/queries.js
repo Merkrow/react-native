@@ -1,7 +1,8 @@
 const {
     GraphQLID,
     GraphQLList,
-    GraphQLNonNull
+    GraphQLNonNull,
+    GraphQLInt,
 } = require('graphql');
 
 const { OrderModel, OrderType, OrderInput } = require('../../models/Order');
@@ -27,7 +28,22 @@ const Orders = {
       .findAll();
   }
 };
+
+const ActiveOrder = {
+  type: OrderType,
+  args: {
+    customerId: {
+      name: "customerId",
+      type: GraphQLInt
+    }
+  },
+  resolve (root, params, options) {
+    return OrderModel.findOne({ where: { customerId: params.customerId, status: 'active' }});
+  }
+}
+
 module.exports = {
   Order,
   Orders,
+  ActiveOrder,
 }

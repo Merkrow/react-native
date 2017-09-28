@@ -1,18 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, } from 'react-native';
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
 import { graphql, gql, compose } from 'react-apollo'
 import PropTypes from 'prop-types';
-import io from 'socket.io-client';
-
-import config from '../config/config';
 
 import Auth from './auth';
 import Profile from './profile';
-import Order from './order';
-import ActiveOrder from './ActiveOrder';
-
 import { GooglePlacesAutocomplete } from './autocomplete';
 
 const API_KEY = 'AIzaSyB01muOUPXMrSoNJYQVS3aXaNgKQF-b9zA';
@@ -24,7 +18,6 @@ const createOrder = gql`
       customerId
       cost
       status
-      id
       path {
         coordinate {
           latitude
@@ -36,7 +29,25 @@ const createOrder = gql`
   }
 `
 
-class Container extends React.Component {
+const findActiveOrder = gql`
+  query findActive($customerId: Int){
+    ActiveOrder(customerId: $customerId) {
+      customerId
+      driverId
+      cost
+      status
+      path {
+        coordinate {
+          latitude
+          longitude
+        }
+        description
+      }
+    }
+  }
+`
+
+class Map extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -53,17 +64,7 @@ class Container extends React.Component {
       search: '',
       selectedInput: null,
       lastField: 1,
-      showMenu: false,
-      xPosition: new Animated.Value(0),
-      showAuthForm: false,
-      user: null,
-      showProfile: false,
-      order: null,
-      socket: null,
     }
-
-    this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
-
     this.onRegionChange = this.onRegionChange.bind(this);
     this.onMapPress = this.onMapPress.bind(this);
     this.onMarkerPress = this.onMarkerPress.bind(this);
@@ -71,41 +72,10 @@ class Container extends React.Component {
     this.openAutocomplete = this.openAutocomplete.bind(this);
     this.onAucompletePressIndex = this.onAucompletePressIndex.bind(this);
     this.blurAutocomplete = this.blurAutocomplete.bind(this);
-    this.triggerMenu = this.triggerMenu.bind(this);
-    this.onCompleteAuth = this.onCompleteAuth.bind(this);
-    this.saveUser = this.saveUser.bind(this);
-    this.getUser = this.getUser.bind(this);
   }
 
-  onCompleteAuth(user) {
-    if (user) {
-      this.updateUser(user);
-    }
-    this.toggleAuthForm();
-  }
+  getActiveOrder = async() => {
 
-  updateUser = (user) => {
-    this.setState({ user });
-    this.saveUser(user);
-  }
-
-  async saveUser(user) {
-    try {
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-    } catch (error) {
-      throw new Error('Error saving user!');
-    }
-  }
-
-  async getUser() {
-    try {
-      const user = await AsyncStorage.getItem('user');
-      if (user !== null) {
-        this.setState({ user: JSON.parse(user) });
-      }
-    } catch(error) {
-      throw new Error('Error gettin user!');
-    }
   }
 
   async getDirections(startLoc, destinationLoc) {
@@ -149,8 +119,9 @@ class Container extends React.Component {
 
   async componentDidMount() {
     window.setInterval(this.setCurrentPos.bind(this), 10000);
-    await this.getUser();
-
+    if (this.props.user) {
+      this.getActiveOrder();
+    }
     navigator.geolocation.getCurrentPosition(pos => {
       const coords = {
         latitude: pos.coords.latitude,
@@ -281,27 +252,6 @@ class Container extends React.Component {
     });
   }
 
-  triggerMenu() {
-    if (!this.state.showMenu) {
-      Animated.timing(
-        this.state.xPosition,
-        {
-          toValue: 250,
-          duration: 1000,
-        }
-      ).start();
-    } else {
-      Animated.timing(
-        this.state.xPosition,
-        {
-          toValue: 0,
-          duration: 1000,
-        }
-      ).start();
-    }
-    this.setState({ showMenu: !this.state.showMenu });
-  }
-
   renderMarkerInfoRow(marker, i) {
     if (marker === null && i > this.state.lastField) return;
     if (marker === null) {
@@ -368,29 +318,6 @@ class Container extends React.Component {
     this.setState({ selectedInput: null });
   }
 
-  toggleAuthForm = () => {
-    this.setState({ showAuthForm: !this.state.showAuthForm });
-  }
-
-  logout = () => {
-    this.setState({ user: null });
-  }
-
-  toggleProfile = () => {
-    this.setState({ showProfile: !this.state.showProfile });
-  }
-
-  onUserUpdateComplete = (user) => {
-    if (user) {
-      this.updateUser(user);
-    }
-    this.toggleProfile();
-  }
-
-  cancelOrder = () => {
-    this.setState({ order: null });
-  }
-
   orderTaxi = async () => {
     const markers = this.state.markers.filter(marker => marker !== null).map(marker => ({ coordinate: marker.coordinate, description: marker.description }));
     if (markers.length < 2 || !this.state.user) return;
@@ -400,13 +327,6 @@ class Container extends React.Component {
     if (res.data.OrderCreate) {
       this.setState({ order: res.data.OrderCreate });
     }
-  }
-
-  hasActiveOrder = (order) => {
-    const { path } = order;
-
-    this.setState({ order: order, markers: path });
-    this.setPolylines(path);
   }
 
   render() {
@@ -605,14 +525,12 @@ class Container extends React.Component {
             bottom: 200 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
           }}>
           </TouchableOpacity>
-          <View style={styles.markersList}>
+          <ScrollView style={styles.markersList}>
             {this.state.markers.map(this.renderMarkerInfoRow.bind(this))}
-          </View>
+          </ScrollView>
         </Animated.View>
         { this.state.showAuthForm && <Auth onComplete={this.onCompleteAuth} /> }
-        { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/> }
-        { this.state.user !== null && <Order user={this.state.user} hasActiveOrder={this.hasActiveOrder} /> }
-        { this.state.order !== null && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
+        { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/>}
       </View>
     );
   }
@@ -659,7 +577,8 @@ Container.propTypes = {
 }
 
 const ContainerComponent = compose(
-  graphql(createOrder, { name: 'createOrder' })
+  graphql(createOrder, { name: 'createOrder' }),
+  graphql(findActiveOrder, { name: 'findActiveOrder', options: { variables: { customerId: null } } })
 )(Container);
 
 export default ContainerComponent;
