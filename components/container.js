@@ -1,10 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, Dimensions, } from 'react-native';
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
 import { graphql, gql, compose } from 'react-apollo'
 import PropTypes from 'prop-types';
 import io from 'socket.io-client';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
 import config from '../config/config';
 
@@ -36,6 +37,8 @@ const createOrder = gql`
   }
 `
 
+const { width, height } = Dimensions.get('window');
+
 class Container extends React.Component {
   constructor(props) {
     super(props);
@@ -55,11 +58,13 @@ class Container extends React.Component {
       lastField: 1,
       showMenu: false,
       xPosition: new Animated.Value(0),
+      fadeAnim: new Animated.Value(0),
       showAuthForm: false,
       user: null,
       showProfile: false,
       order: null,
       socket: null,
+      orderView: false,
     }
 
     this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
@@ -68,7 +73,6 @@ class Container extends React.Component {
     this.onMapPress = this.onMapPress.bind(this);
     this.onMarkerPress = this.onMarkerPress.bind(this);
     this.autocompletePress = this.autocompletePress.bind(this);
-    this.openAutocomplete = this.openAutocomplete.bind(this);
     this.onAucompletePressIndex = this.onAucompletePressIndex.bind(this);
     this.blurAutocomplete = this.blurAutocomplete.bind(this);
     this.triggerMenu = this.triggerMenu.bind(this);
@@ -234,28 +238,28 @@ class Container extends React.Component {
     const marker = this.state.markers[i];
   }
 
-  addMarker(marker) {
+  addMarker = (marker) => {
     const { markers } = this.state;
     const index = markers.indexOf(null);
     if (index === -1) return;
-    markers[index] = marker;
-      this.setState({ markers, selector: {}, });
+    const newMarkers = markers.map((prev, i) => i === index ? marker : prev);
+      this.setState({ markers: newMarkers, selector: {}, });
       if (index > 0) {
-        this.setPolylines(markers.slice(0, index + 1));
+        this.setPolylines(newMarkers.slice(0, index + 1));
       }
   }
 
-  addMarkerByIndex(marker, index) {
+  addMarkerByIndex = (marker, index) => {
     const { markers } = this.state;
-    markers[index] = marker;
-    this.setState({ markers });
-    const pol = markers.filter(marker => marker !== null);
+    const newMarkers = markers.map((prev, i) => i === index ? marker : prev);
+    this.setState({ markers: newMarkers });
+    const pol = newMarkers.filter(marker => marker !== null);
     if (pol.length > 1) {
       this.setPolylines(pol);
     }
   }
 
-  onRemoveTextPress(index) {
+  onRemoveTextPress = (index) => {
     const { markers, lastField } = this.state;
     const newMarkers = markers.filter((marker, i) => i !== index).concat(null);
     this.setState({ markers: newMarkers, polylines: [], lastField: lastField === 1 ? lastField : lastField - 1 });
@@ -263,11 +267,11 @@ class Container extends React.Component {
     return polyline.length > 1 ? this.setPolylines(polyline) : null;
   }
 
-  openAutocomplete(i, marker = null) {
+  openAutocomplete = (i, marker = null) => {
     this.setState({ selectedInput: { index: i, marker }});
   }
 
-  addNextField() {
+  addNextField = () => {
     const { lastField } = this.state;
     this.setState({ lastField: this.state.lastField + 1 });
   }
@@ -300,46 +304,6 @@ class Container extends React.Component {
       ).start();
     }
     this.setState({ showMenu: !this.state.showMenu });
-  }
-
-  renderMarkerInfoRow(marker, i) {
-    if (marker === null && i > this.state.lastField) return;
-    if (marker === null) {
-      return (
-        <View key={i} style={styles.markersListItem}>
-          <Text style={styles.markersListText} onPress={() => this.openAutocomplete(i)}>{i === 0 ? 'From' : 'To'}</Text>
-        </View>
-      )
-    }
-    return (
-      <View key={i} style={styles.markersListItem}>
-        <Text style={styles.markersListText} onPress={() => this.openAutocomplete(i, marker)}>{`${marker.description}`}</Text>
-        {this.state.markers[i + 1] !== null || i === 0 || this.state.lastField > i ?
-          <Text
-          onPress={() => this.onRemoveTextPress(i)}
-          style={{
-            textAlign: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0)',
-            fontSize: 25,
-            color: '#1492db',
-            position: 'absolute',
-            right: 10,
-            top: 10,
-          }}>—</Text> :
-          <Text
-          onPress={() => this.addNextField()}
-          style={{
-            textAlign: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0)',
-            fontSize: 25,
-            color: '#1492db',
-            position: 'absolute',
-            right: 10,
-            top: 10,
-          }}>+</Text>
-        }
-      </View>
-    )
   }
 
   async onAucompletePressIndex(data, details) {
@@ -402,6 +366,28 @@ class Container extends React.Component {
     }
   }
 
+  toggleOrderView = () => {
+    if (!this.state.orderView) {
+      Animated.timing(
+        this.state.fadeAnim,
+        {
+          toValue: 1,
+          duration: 500,
+        }
+      ).start();
+      this.setState({ orderView: !this.state.orderView })
+    } else {
+      Animated.timing(
+        this.state.fadeAnim,
+        {
+          toValue: 0,
+          duration: 500,
+        }
+      ).start();
+      setTimeout(() => this.setState({ orderView: !this.state.orderView }), 500);
+    }
+  }
+
   hasActiveOrder = (order) => {
     const { path } = order;
 
@@ -415,22 +401,39 @@ class Container extends React.Component {
     const markersLength = markers.filter(marker => marker !== null).length;
     return (
       <View style={styles.container}>
-        <Animated.View style={[{left: 0, width: this.state.xPosition, top: 0, bottom: 0, backgroundColor: '#2f2f30', position: 'absolute', }]}>
+        <Animated.View style={[{ width: 250, right: this.state.xPosition - width, top: 0, bottom: 0, backgroundColor: '#2f2f30', position: 'absolute', }]}>
           <View style={{ height: 75, backgroundColor: '#1492db', }}>
-            { this.state.user ? <Text style={{ position: 'absolute', top: 30, left: 30 }} onPress={this.logout}>{`Sign out ${this.state.user.email}`}</Text> : <Text style={{ position: 'absolute', top: 30, left: 30 }} onPress={this.toggleAuthForm}>Sign in</Text>}
-            { this.state.user ? <Text style={{ position: 'absolute', bottom: 5, right: 5 }} onPress={this.toggleProfile}>Profile</Text> : null }
+            { this.state.user ?
+              <Text
+                style={{ position: 'absolute', right: 10, bottom: 10 }}
+                onPress={this.logout}>
+                <Icon name="sign-out" size={30} color="#fff" style={{ width: 30 }} />
+              </Text> :
+              <Text style={{ position: 'absolute', top: 30, left: 30 }} onPress={this.toggleAuthForm}>Sign in</Text>
+            }
+            { this.state.user ?
+              <Text
+                style={{ position: 'absolute', bottom: 10, left: 10, }}
+                onPress={this.toggleProfile}>
+                <Icon name="user-circle" size={40} color="#fff" style={{ width: 40 }} />
+                  <Text style={{ color: '#fff', marginLeft: 30 }}>{ this.state.user.phoneNumber }</Text>
+              </Text> : null
+            }
           </View>
-          <View style={styles.menuRow}>
+          <TouchableOpacity style={styles.menuRow}>
+            <Icon name="bookmark" size={25} color="#1492db" style={styles.menuIcon} />
             <Text style={styles.menuText}>My trips</Text>
-          </View>
-          <View style={styles.menuRow}>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuRow}>
+            <Icon name="star-o" size={25} color="#1492db" style={styles.menuIcon} />
             <Text style={styles.menuText}>My addresses</Text>
-          </View>
-          <View style={styles.menuRow}>
-            <Text onPress={() => Linking.openURL('mailto:react.native.taxi@gmail.com?subject=Support&body=body')} style={styles.menuText}>Service Support</Text>
-          </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('mailto:react.native.taxi@gmail.com?subject=Support&body=body')} style={styles.menuRow}>
+            <Icon name="support" size={25} color="#1492db" style={styles.menuIcon} />
+            <Text style={styles.menuText}>Service Support</Text>
+          </TouchableOpacity>
         </Animated.View>
-        <Animated.View style={[styles.mapView, { left: this.state.xPosition, top: 0, right: 0, bottom: 0, }]}>
+        <Animated.View style={[styles.mapView, { width, left: this.state.xPosition, top: 0, right: 0, bottom: 0, }]}>
           <MapView
             style={[styles.map, { bottom: 0 }]}
             showsCompass={false}
@@ -504,6 +507,88 @@ class Container extends React.Component {
               </View>
             }
           </MapView>
+          <GooglePlacesAutocomplete
+            placeholder='Search'
+            minLength={2}
+            filterReverseGeocodingByTypes={['address']}
+            query={{
+              key: API_KEY,
+              language: 'en',
+              types: 'geocode',
+              location: `${latitude}, ${longitude}`,
+              radius: 50000,
+            }}
+            debounce={200}
+            fetchDetails={true}
+            autoFocus={false}
+            styles={{
+              container: {
+                flex: 0,
+                backgroundColor: '#fff',
+              },
+              textInputContainer: {
+                backgroundColor: '#fff',
+                borderTopWidth: 0,
+                borderBottomWidth: 0,
+                height: 75,
+                position: 'relative',
+                borderBottomColor: '#dad9de',
+                borderBottomWidth: 1,
+              },
+            }}
+            onPress={this.autocompletePress}
+          />
+          <Text onPress={this.triggerMenu} style={{ position: 'absolute', left: 28, top: 34, color: '#000' }}>
+            <Icon name="gear" size={30} color="#1492db" style={{ width: 30 }} />
+          </Text>
+          <TouchableOpacity
+          onPress={this.goToUserLocation}
+          style={{
+            position: 'absolute',
+            right: 5,
+            borderRadius: 50,
+            backgroundColor: '#fff',
+            height: 50,
+            width: 50,
+            bottom: 200 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Icon name="location-arrow" size={35} color="#1492db" style={{ width: 35 }} />
+          </TouchableOpacity>
+          <TouchableOpacity
+          onPress={this.toggleOrderView}
+          style={{
+            position: 'absolute',
+            right: 5,
+            borderRadius: 50,
+            backgroundColor: '#fff',
+            height: 50,
+            width: 50,
+            bottom: 130 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          </TouchableOpacity>
+          <Order
+            openAutocomplete={this.openAutocomplete}
+            onRemoveTextPress={this.onRemoveTextPress}
+            addNextField={this.addNextField}
+            user={this.state.user}
+            userId={this.state.user !== null && this.state.user.id}
+            markers={this.state.markers}
+            lastField={this.state.lastField}
+            hasActiveOrder={this.hasActiveOrder}
+            orderView={this.state.orderView}
+            toggleOrderView={this.toggleOrderView}
+            orderTaxi={this.orderTaxi}
+          />
+        </Animated.View>
+        { this.state.orderView && <Animated.View style={[styles.header, { opacity: this.state.fadeAnim }]}>
+            <Text style={{ marginTop: 30, marginLeft: 20, width: 40 }} onPress={() => this.toggleOrderView()}><Icon name="angle-down" size={35} color="#fff" style={{ width: 35 }} /></Text>
+          </Animated.View>}
           {
             this.state.selectedInput ?
             <GooglePlacesAutocomplete
@@ -549,69 +634,8 @@ class Container extends React.Component {
             /> :
             null
           }
-          <GooglePlacesAutocomplete
-            placeholder='Search'
-            minLength={2}
-            filterReverseGeocodingByTypes={['address']}
-            query={{
-              key: API_KEY,
-              language: 'en',
-              types: 'geocode',
-              location: `${latitude}, ${longitude}`,
-              radius: 50000,
-            }}
-            debounce={200}
-            fetchDetails={true}
-            autoFocus={false}
-            styles={{
-              container: {
-                flex: 0,
-                backgroundColor: '#fff',
-              },
-              textInputContainer: {
-                backgroundColor: '#fff',
-                borderTopWidth: 0,
-                borderBottomWidth: 0,
-                height: 75,
-                position: 'relative',
-                borderBottomColor: '#dad9de',
-                borderBottomWidth: 1,
-              },
-            }}
-            onPress={this.autocompletePress}
-          />
-          <Text onPress={this.triggerMenu} style={{ position: 'absolute', left: 30, top: 40, color: '#000' }}>Menu</Text>
-          <TouchableOpacity
-          onPress={this.goToUserLocation}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#fff',
-            height: 50,
-            width: 50,
-            bottom: 130 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
-          }}>
-          </TouchableOpacity>
-          <TouchableOpacity
-          onPress={this.orderTaxi}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#fff',
-            height: 50,
-            width: 50,
-            bottom: 200 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
-          }}>
-          </TouchableOpacity>
-          <View style={styles.markersList}>
-            {this.state.markers.map(this.renderMarkerInfoRow.bind(this))}
-          </View>
-        </Animated.View>
         { this.state.showAuthForm && <Auth onComplete={this.onCompleteAuth} /> }
         { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/> }
-        { this.state.user !== null && <Order user={this.state.user} hasActiveOrder={this.hasActiveOrder} /> }
         { this.state.order !== null && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
       </View>
     );
@@ -629,30 +653,35 @@ const styles = StyleSheet.create({
   mapView: {
     position: 'absolute',
   },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 75,
+    backgroundColor: '#1492db',
+  },
   map: {
     left: 0,
     right: 0,
     top: 75,
     position: 'absolute',
   },
-  markersList: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#dad9de',
-  },
-  markersListItem: {
+  menuRow: {
     position: 'relative',
   },
-  markersListText: {
-    height: 56,
-    lineHeight: 55,
-    fontSize: 15,
-    color: '#bababa',
-    paddingLeft: 15,
+  menuIcon: {
+    width: 25,
+    left: 10,
+    position: 'absolute',
+    top: 12
   },
+  menuText: {
+    color: '#fff',
+    height: 50,
+    lineHeight: 50,
+    marginLeft: 70,
+  }
 });
 
 Container.propTypes = {

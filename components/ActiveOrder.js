@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, } from 'react-native';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
 import { graphql, gql, compose } from 'react-apollo';
 
@@ -38,14 +39,18 @@ class ActiveOrderComponent extends React.Component {
         </View>
         <View style={styles.cancel}>
           <TouchableOpacity
-          onPress={this.cancelOrder}
+            onPress={this.cancelOrder}
             style={{
               borderRadius: 50,
               backgroundColor: '#f00',
               height: 50,
               width: 50,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
+            <Icon name="close" size={20} color="#fff" style={{ width: 20 }} />
           </TouchableOpacity>
         </View>
       </View>

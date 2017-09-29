@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   PixelRatio
 } from 'react-native';
+import Icon from 'react-native-vector-icons/FontAwesome';
 import Qs from 'qs';
 
 const WINDOW = Dimensions.get('window');
@@ -78,7 +79,15 @@ const defaultStyles = {
     height: StyleSheet.hairlineWidth,
     backgroundColor: '#c8c7cc',
   },
-  description: {},
+  description: {
+    marginLeft: 30,
+  },
+  clockIcon: {
+    width: 30,
+    position: 'absolute',
+    left: 5,
+    top: 8,
+  },
   loader: {
     // flex: 1,
     flexDirection: 'row',
@@ -597,6 +606,7 @@ export default class GooglePlacesAutocomplete extends Component {
           underlayColor={this.props.listUnderlayColor || "#c8c7cc"}
         >
           <View style={[defaultStyles.row, this.props.styles.row, rowData.isPredefinedPlace ? this.props.styles.specialItemRow : {}]}>
+            <Icon name="clock-o" size={30} color="#1492db" style={defaultStyles.clockIcon} />
             {this._renderRowData(rowData)}
             {this._renderLoader(rowData)}
           </View>
