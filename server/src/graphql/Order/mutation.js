@@ -14,7 +14,6 @@ const OrderCreate = {
     }
   },
   async resolve (root, params, options) {
-    console.log(params.data);
     const orderModel = new OrderModel(params.data);
     const newOrder = await orderModel.save();
     if (!newOrder) {

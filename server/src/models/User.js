@@ -120,7 +120,7 @@ module.exports.UserInput = new GraphQLInputObjectType({
     favoritePlace: {
       type: new GraphQLList(GraphQLString)
     },
-    order: {
+    orders: {
       type: new GraphQLList(GraphQLString)
     },
     pw: {

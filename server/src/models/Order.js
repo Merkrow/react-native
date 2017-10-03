@@ -16,7 +16,6 @@ const Order = {
   path: {
     type: Sequelize.TEXT,
     get: function() {
-      console.log(this.getDataValue('path'));
       return JSON.parse(this.getDataValue('path'));
     },
     set: function(val) {
@@ -29,7 +28,9 @@ const Order = {
   },
   driverId: Sequelize.INTEGER,
   customerId: Sequelize.INTEGER,
-  cost: Sequelize.STRING,
+  cost: {
+    type: Sequelize.INTEGER,
+  },
 }
 
 const Coordinate = new GraphQLObjectType({
@@ -80,7 +81,7 @@ module.exports.OrderType = new GraphQLObjectType({
       type: GraphQLInt
     },
     cost: {
-      type: GraphQLString
+      type: GraphQLInt
     }
   }
 });
@@ -128,7 +129,7 @@ module.exports.OrderInput = new GraphQLInputObjectType({
       type: GraphQLInt
     },
     cost: {
-      type: GraphQLString
+      type: GraphQLInt
     }
   }
 });

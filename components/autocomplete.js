@@ -26,7 +26,7 @@ const defaultStyles = {
   },
   textInputContainer: {
     backgroundColor: '#C9C9CE',
-    height: 44,
+    height: 30,
     borderTopColor: '#7e7e7e',
     borderBottomColor: '#b5b5b5',
     borderTopWidth: 1 / PixelRatio.get(),
@@ -100,9 +100,9 @@ const defaultStyles = {
   cancelButton: {
     position: 'absolute',
     right: 25,
-    bottom: 14,
     color: '#1492db',
     fontSize: 20,
+    top: 35,
   }
 };
 

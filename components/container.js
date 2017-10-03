@@ -20,7 +20,7 @@ const API_KEY = 'AIzaSyB01muOUPXMrSoNJYQVS3aXaNgKQF-b9zA';
 const mode = 'driving';
 
 const createOrder = gql`
-  mutation order($path: [OrderMarkerInput], $customerId: Int, $cost: String) {
+  mutation order($path: [OrderMarkerInput], $customerId: Int, $cost: Int) {
     OrderCreate(data: { path: $path, customerId: $customerId, cost: $cost }) {
       customerId
       cost
@@ -33,6 +33,19 @@ const createOrder = gql`
         }
         description
       }
+    }
+  }
+`
+
+const updateUser = gql`
+  mutation Update($email: String, $name: String, $phoneNumber: String, $id: Int, $orders: [String]) {
+    UserUpdate(data: { email: $email, name: $name, phoneNumber: $phoneNumber, id: $id, orders: $orders }) {
+      id
+      phoneNumber
+      email
+      favoritePlaces
+      orders
+      name
     }
   }
 `
@@ -65,6 +78,8 @@ class Container extends React.Component {
       order: null,
       socket: null,
       orderView: false,
+      distance: 0,
+      cost: 30,
     }
 
     this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
@@ -117,13 +132,14 @@ class Container extends React.Component {
       let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc }&destination=${ destinationLoc }&key=${API_KEY}&mode=${mode}`)
       let respJson = await resp.json();
       let points = Polyline.decode(respJson.routes[0].overview_polyline.points);
+      const distance = respJson.routes[0].legs[0].distance.value;
       let coords = points.map((point, index) => {
         return  {
           latitude : point[0],
           longitude : point[1],
         }
       })
-      this.setState({ polylines: this.state.polylines.concat({ coords: coords }) });
+      this.setState({ polylines: this.state.polylines.concat({ coords: coords }), distance: this.state.distance + distance });
       return coords;
     } catch(error) {
       return error;
@@ -173,10 +189,11 @@ class Container extends React.Component {
   }
 
   onRegionChange(region) {
-    this.setState({ region, selector: {} });
+    this.setState({ region, });
   }
 
   setPolylines(arr) {
+    this.setState({ distance: 0 });
     arr.reduce((prev, curr) => {
       if (prev === null) return curr;
       const { latitude, longitude } = prev.coordinate;
@@ -218,18 +235,19 @@ class Container extends React.Component {
     // if (markers.length > 1) {
     //   this.setPolylines(markers);
     // }
+
+    this.map.animateToRegion({
+        latitudeDelta: 0.004622,
+        longitudeDelta: 0.00681,
+        latitude: lat,
+        longitude: lng,
+      }, 500);
     this.setState({
       selector:
         { coordinate:
           { longitude: lng, latitude: lat },
           description
         },
-      region: {
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681,
-        latitude: lat,
-        longitude: lng,
-      }
     });
     return data;
   }
@@ -249,6 +267,12 @@ class Container extends React.Component {
       }
   }
 
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.distance !== this.state.distance) {
+      this.countCost();
+    }
+  }
+
   addMarkerByIndex = (marker, index) => {
     const { markers } = this.state;
     const newMarkers = markers.map((prev, i) => i === index ? marker : prev);
@@ -264,6 +288,9 @@ class Container extends React.Component {
     const newMarkers = markers.filter((marker, i) => i !== index).concat(null);
     this.setState({ markers: newMarkers, polylines: [], lastField: lastField === 1 ? lastField : lastField - 1 });
     const polyline = newMarkers.filter(marker => marker !== null);
+    if (polyline.length < 2) {
+      this.setState({ distance: 0, cost: 30 });
+    }
     return polyline.length > 1 ? this.setPolylines(polyline) : null;
   }
 
@@ -310,6 +337,12 @@ class Container extends React.Component {
     const { lat, lng } = details.geometry.location;
     const { index } = this.state.selectedInput;
     const description = await this.getAddress(`${lat}, ${lng}`);
+    this.map.animateToRegion({
+        latitudeDelta: 0.004622,
+        longitudeDelta: 0.00681,
+        latitude: lat,
+        longitude: lng,
+      }, 500);
     this.addMarkerByIndex({ coordinate: { longitude: lng, latitude: lat }, description }, index)
     this.setState({
       selector:
@@ -317,12 +350,6 @@ class Container extends React.Component {
           { longitude: lng, latitude: lat },
           description
         },
-      region: {
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681,
-        latitude: lat,
-        longitude: lng,
-      },
       selectedInput: null,
     });
     return data;
@@ -355,14 +382,29 @@ class Container extends React.Component {
     this.setState({ order: null });
   }
 
+  countCost = () => {
+    const { distance } = this.state;
+    let cost = Math.round(distance * 0.015);
+    cost = cost < 30 ? 30 : cost;
+    this.setState({ cost });
+  }
+
   orderTaxi = async () => {
     const markers = this.state.markers.filter(marker => marker !== null).map(marker => ({ coordinate: marker.coordinate, description: marker.description }));
     if (markers.length < 2 || !this.state.user) return;
+    const { cost } = this.state;
     const res = await this.props.createOrder({
-      variables: { path: markers, customerId: this.state.user.id, cost: '40uah' }
+      variables: { path: markers, customerId: this.state.user.id, cost }
     });
     if (res.data.OrderCreate) {
       this.setState({ order: res.data.OrderCreate });
+      const { email, name, phoneNumber, id, orders } = this.state.user;
+      const resUser = await this.props.updateUser({
+        variables: { email, name, phoneNumber, id, orders: orders.concat(res.data.OrderCreate.id) }
+      });
+      if (resUser.data.UpdateUser) {
+        this.updateUser(resUser.data.UpdateUser);
+      }
     }
   }
 
@@ -390,9 +432,12 @@ class Container extends React.Component {
 
   hasActiveOrder = (order) => {
     const { path } = order;
-
     this.setState({ order: order, markers: path });
     this.setPolylines(path);
+  }
+
+  changeCost = (cost) => {
+    this.setState({ cost });
   }
 
   render() {
@@ -435,6 +480,7 @@ class Container extends React.Component {
         </Animated.View>
         <Animated.View style={[styles.mapView, { width, left: this.state.xPosition, top: 0, right: 0, bottom: 0, }]}>
           <MapView
+            ref={(map) => this.map = map}
             style={[styles.map, { bottom: 0 }]}
             showsCompass={false}
             onRegionChange={this.onRegionChange}
@@ -458,7 +504,7 @@ class Container extends React.Component {
               >
                 <MapView.Callout {...this.state.selector}>
                   <View style={{ position: 'relative', }}>
-                    <Text style={{ marginRight: 30, }}>{this.state.selector.description.slice(0, 20)}</Text>
+                    <Text style={{ marginRight: 30, }}>{`${this.state.selector.description.split(', ')[0]}, ${this.state.selector.description.split(', ')[1]}`}</Text>
                     {this.state.markers.indexOf(null) === -1 ? null :
                       <View
                       style={{
@@ -481,7 +527,7 @@ class Container extends React.Component {
                 return (
                   <MapView.Marker
                     key={i}
-                    description={marker.description}
+                    description={`${marker.description.split(', ')[0]}, ${marker.description.split(', ')[1]}`}
                     coordinate={marker.coordinate}
                     onPress={e => e.stopPropagation()}
                     onCalloutPress={e => {e.stopPropagation(); this.onMarkerPress(marker)}}
@@ -507,40 +553,50 @@ class Container extends React.Component {
               </View>
             }
           </MapView>
-          <GooglePlacesAutocomplete
-            placeholder='Search'
-            minLength={2}
-            filterReverseGeocodingByTypes={['address']}
-            query={{
-              key: API_KEY,
-              language: 'en',
-              types: 'geocode',
-              location: `${latitude}, ${longitude}`,
-              radius: 50000,
-            }}
-            debounce={200}
-            fetchDetails={true}
-            autoFocus={false}
-            styles={{
-              container: {
-                flex: 0,
-                backgroundColor: '#fff',
-              },
-              textInputContainer: {
-                backgroundColor: '#fff',
-                borderTopWidth: 0,
-                borderBottomWidth: 0,
-                height: 75,
-                position: 'relative',
-                borderBottomColor: '#dad9de',
-                borderBottomWidth: 1,
-              },
-            }}
-            onPress={this.autocompletePress}
-          />
-          <Text onPress={this.triggerMenu} style={{ position: 'absolute', left: 28, top: 34, color: '#000' }}>
-            <Icon name="gear" size={30} color="#1492db" style={{ width: 30 }} />
-          </Text>
+          <View style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            height: 75,
+            flex: 0,
+            backgroundColor: '#fff'
+          }}>
+            <Text onPress={this.triggerMenu} style={{ position: 'absolute', left: 28, top: 34, color: '#000', }}>
+              <Icon name="gear" size={30} color="#1492db" style={{ width: 30 }} />
+            </Text>
+            <GooglePlacesAutocomplete
+              placeholder='Search'
+              minLength={2}
+              filterReverseGeocodingByTypes={['address']}
+              query={{
+                key: API_KEY,
+                language: 'en',
+                types: 'geocode',
+                location: `${latitude}, ${longitude}`,
+                radius: 50000,
+              }}
+              debounce={200}
+              fetchDetails={true}
+              autoFocus={false}
+              styles={{
+                container: {
+                  flex: 0,
+                  backgroundColor: '#fff',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: 0
+                },
+                textInputContainer: {
+                  backgroundColor: '#fff',
+                  borderTopWidth: 0,
+                  borderBottomWidth: 0,
+                },
+              }}
+              onPress={this.autocompletePress}
+            />
+          </View>
           <TouchableOpacity
           onPress={this.goToUserLocation}
           style={{
@@ -557,13 +613,25 @@ class Container extends React.Component {
           }}>
             <Icon name="location-arrow" size={35} color="#1492db" style={{ width: 35 }} />
           </TouchableOpacity>
+          <View style={{
+            position: 'absolute',
+            right: 25,
+            width: 100,
+            height: 40,
+            bottom: 135 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+            justifyContent: 'center',
+            backgroundColor: 'rgba(130, 130, 130, 0.5)',
+            borderRadius: 100,
+          }}>
+            <Text style={{ fontSize: 18, marginLeft: 15 }}>{`${this.state.cost}uah`}</Text>
+          </View>
           <TouchableOpacity
           onPress={this.toggleOrderView}
           style={{
             position: 'absolute',
             right: 5,
             borderRadius: 50,
-            backgroundColor: '#fff',
+            backgroundColor: '#f5cc12',
             height: 50,
             width: 50,
             bottom: 130 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
@@ -571,6 +639,7 @@ class Container extends React.Component {
             alignItems: 'center',
             justifyContent: 'center',
           }}>
+            <Icon name="long-arrow-right" size={27} color="#000" style={{ width: 27 }} />
           </TouchableOpacity>
           <Order
             openAutocomplete={this.openAutocomplete}
@@ -584,6 +653,8 @@ class Container extends React.Component {
             orderView={this.state.orderView}
             toggleOrderView={this.toggleOrderView}
             orderTaxi={this.orderTaxi}
+            cost={this.state.cost}
+            changeCost={this.changeCost}
           />
         </Animated.View>
         { this.state.orderView && <Animated.View style={[styles.header, { opacity: this.state.fadeAnim }]}>
@@ -688,7 +759,8 @@ Container.propTypes = {
 }
 
 const ContainerComponent = compose(
-  graphql(createOrder, { name: 'createOrder' })
+  graphql(createOrder, { name: 'createOrder' }),
+  graphql(updateUser, { name: 'updateUser' })
 )(Container);
 
 export default ContainerComponent;
