@@ -46,7 +46,7 @@ app._io.on('connection', (socket) => {
   socket.on('get all orders', async () => {
     try {
       const Orders = await OrderModel.findAll({ where: { status: 'active' } });
-      socket.emit('allOrders', Orders);
+      app._io.emit('allOrders', Orders);
     } catch(err) {
       console.log(err);
     }
@@ -59,11 +59,27 @@ app._io.on('connection', (socket) => {
       if (!newOrder) {
         throw new Error('Error adding new order');
       }
-        socket.emit('order created', newOrder);
-        app._io.emit('addOrder', newORder);
+      app._io.emit('newOrder', newOrder);
+      socket.emit('order created', newOrder);
     } catch(err) {
       console.log(err);
     }
+  })
+
+  socket.on('accept order by driver', async (order) => {
+    console.log(order);
+    try {
+      await OrderModel.update(Object.assign(order, { status: 'acceptByDriver' }), { where: { id: order.id }});
+      const newOrder = await OrderModel.findById(order.id);
+      socket.emit('updateOrder', newOrder);
+      app._io.emit(`update order ${order.customerId}`, newOrder);
+    } catch(err) {
+      console.log(err);
+    }
+  })
+
+  socket.on('reject order by driver', async (order) => {
+
   })
 })
 
