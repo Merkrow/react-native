@@ -83,12 +83,12 @@ class OrderComponent extends React.Component {
     this.setState({ cost: this.props.cost });
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps) {
     const order = this.props.findActiveOrder.ActiveOrder;
-    if (order) {
+    if (order && prevProps.findActiveOrder.loading && !this.props.findActiveOrder.loading) {
       this.props.hasActiveOrder(order);
     }
-    if (this.props.orderView) {
+    if (this.props.orderView !== prevProps.orderView && this.props.orderView) {
       Animated.timing(
         this.state.yPosition,
         {
@@ -96,7 +96,7 @@ class OrderComponent extends React.Component {
           duration: 1000,
         }
       ).start();
-    } else {
+    } else if (!this.props.orderView) {
       Animated.timing(
         this.state.yPosition,
         {
@@ -104,6 +104,9 @@ class OrderComponent extends React.Component {
           duration: 1000,
         }
       ).start();
+    }
+    if (this.props.cost !== prevProps.cost) {
+      this.setState({ cost: this.props.cost });
     }
   }
 

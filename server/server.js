@@ -42,6 +42,29 @@ app._io.on('connection', (socket) => {
     }
     app._io.emit(`cancel order ${order.id}`, true);
   })
+
+  socket.on('get all orders', async () => {
+    try {
+      const Orders = await OrderModel.findAll({ where: { status: 'active' } });
+      socket.emit('allOrders', Orders);
+    } catch(err) {
+      console.log(err);
+    }
+  })
+
+  socket.on('create order', async (order) => {
+    try {
+      const orderModel = new OrderModel(order);
+      const newOrder = await orderModel.save();
+      if (!newOrder) {
+        throw new Error('Error adding new order');
+      }
+        socket.emit('order created', newOrder);
+        app._io.emit('addOrder', newORder);
+    } catch(err) {
+      console.log(err);
+    }
+  })
 })
 
 

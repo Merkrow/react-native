@@ -13,6 +13,7 @@ import Auth from './auth';
 import Profile from './profile';
 import Order from './order';
 import ActiveOrder from './ActiveOrder';
+import Trips from './trips';
 
 import { GooglePlacesAutocomplete } from './autocomplete';
 
@@ -80,6 +81,7 @@ class Container extends React.Component {
       orderView: false,
       distance: 0,
       cost: 30,
+      ordersList: false,
     }
 
     this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
@@ -170,7 +172,6 @@ class Container extends React.Component {
   async componentDidMount() {
     window.setInterval(this.setCurrentPos.bind(this), 10000);
     await this.getUser();
-
     navigator.geolocation.getCurrentPosition(pos => {
       const coords = {
         latitude: pos.coords.latitude,
@@ -186,6 +187,16 @@ class Container extends React.Component {
         },
       });
     });
+    this.socket.on('order created', async (order) => {
+      this.setState({ order });
+      const { email, name, phoneNumber, id, orders } = this.state.user
+      const resUser = await this.props.updateUser({
+        variables: { email, name, phoneNumber, id, orders: orders.concat(order.id) }
+      });
+      if (resUser.data.UserUpdate) {
+        this.updateUser(resUser.data.UserUpdate);
+      }
+    })
   }
 
   onRegionChange(region) {
@@ -300,7 +311,7 @@ class Container extends React.Component {
 
   addNextField = () => {
     const { lastField } = this.state;
-    this.setState({ lastField: this.state.lastField + 1 });
+    this.setState({ lastField: lastField + 1 });
   }
 
   goToUserLocation = () => {
@@ -393,19 +404,20 @@ class Container extends React.Component {
     const markers = this.state.markers.filter(marker => marker !== null).map(marker => ({ coordinate: marker.coordinate, description: marker.description }));
     if (markers.length < 2 || !this.state.user) return;
     const { cost } = this.state;
-    const res = await this.props.createOrder({
-      variables: { path: markers, customerId: this.state.user.id, cost }
-    });
-    if (res.data.OrderCreate) {
-      this.setState({ order: res.data.OrderCreate });
-      const { email, name, phoneNumber, id, orders } = this.state.user;
-      const resUser = await this.props.updateUser({
-        variables: { email, name, phoneNumber, id, orders: orders.concat(res.data.OrderCreate.id) }
-      });
-      if (resUser.data.UpdateUser) {
-        this.updateUser(resUser.data.UpdateUser);
-      }
-    }
+    // const res = await this.props.createOrder({
+    //   variables: { path: markers, customerId: this.state.user.id, cost }
+    // });
+    // if (res.data.OrderCreate) {
+    //   this.setState({ order: res.data.OrderCreate });
+    //   const { email, name, phoneNumber, id, orders } = this.state.user
+    //   const resUser = await this.props.updateUser({
+    //     variables: { email, name, phoneNumber, id, orders: orders.concat(res.data.OrderCreate.id) }
+    //   });
+    //   if (resUser.data.UserUpdate) {
+    //     this.updateUser(resUser.data.UserUpdate);
+    //   }
+    // }
+    this.socket.emit('create order', { path: markers, customerId: this.state.user.id, cost });
   }
 
   toggleOrderView = () => {
@@ -440,6 +452,14 @@ class Container extends React.Component {
     this.setState({ cost });
   }
 
+  triggerOrdersList = () => {
+    this.setState({ ordersList: true });
+  }
+
+  onOrdersListFinish = () => {
+    this.setState({ ordersList: false });
+  }
+
   render() {
     const { latitude, longitude } = this.state.region;
     const { userCoordinates, markers } = this.state;
@@ -465,7 +485,7 @@ class Container extends React.Component {
               </Text> : null
             }
           </View>
-          <TouchableOpacity style={styles.menuRow}>
+          <TouchableOpacity onPress={this.triggerOrdersList} style={styles.menuRow}>
             <Icon name="bookmark" size={25} color="#1492db" style={styles.menuIcon} />
             <Text style={styles.menuText}>My trips</Text>
           </TouchableOpacity>
@@ -502,6 +522,20 @@ class Container extends React.Component {
                 onCalloutPress={e => {e.stopPropagation();}}
                 showCallout={true}
               >
+              <View style={{
+                height: 30,
+                width: 30,
+                backgroundColor: '#e83a76',
+                borderTopRightRadius: 150,
+                borderTopLeftRadius: 150,
+                borderBottomLeftRadius: 150,
+                overflow: 'hidden',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transform: [{ rotate: '45deg' }],
+                marginBottom: 30
+              }}>
+              </View>
                 <MapView.Callout {...this.state.selector}>
                   <View style={{ position: 'relative', }}>
                     <Text style={{ marginRight: 30, }}>{`${this.state.selector.description.split(', ')[0]}, ${this.state.selector.description.split(', ')[1]}`}</Text>
@@ -531,7 +565,23 @@ class Container extends React.Component {
                     coordinate={marker.coordinate}
                     onPress={e => e.stopPropagation()}
                     onCalloutPress={e => {e.stopPropagation(); this.onMarkerPress(marker)}}
-                  />
+                  >
+                    <View style={{
+                      height: 30,
+                      width: 30,
+                      backgroundColor: i === 0 ? '#80f2b5' : i === markersLength - 1 ? '#e83a76' : '#61b2ed',
+                      borderTopRightRadius: 150,
+                      borderTopLeftRadius: 150,
+                      borderBottomLeftRadius: 150,
+                      overflow: 'hidden',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transform: [{ rotate: '45deg' }],
+                      marginBottom: 30
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 20, transform: [{ rotate: '315deg' }] }}>{String.fromCharCode(65 + i)}</Text>
+                    </View>
+                  </MapView.Marker>
                 );
               }
             )}
@@ -623,7 +673,7 @@ class Container extends React.Component {
             backgroundColor: 'rgba(130, 130, 130, 0.5)',
             borderRadius: 100,
           }}>
-            <Text style={{ fontSize: 18, marginLeft: 15 }}>{`${this.state.cost}uah`}</Text>
+            <Text style={{ fontSize: 18, marginLeft: 7 }}>{`${this.state.cost}uah`}</Text>
           </View>
           <TouchableOpacity
           onPress={this.toggleOrderView}
@@ -708,6 +758,7 @@ class Container extends React.Component {
         { this.state.showAuthForm && <Auth onComplete={this.onCompleteAuth} /> }
         { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/> }
         { this.state.order !== null && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
+        { this.state.ordersList && this.state.user !== null && <Trips orders={this.state.user.orders} onComplete={this.onOrdersListFinish} /> }
       </View>
     );
   }

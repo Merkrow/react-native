@@ -45,9 +45,6 @@ class ActiveOrderComponent extends React.Component {
 
   timerCountdown = () => {
     const { timerTime } = this.state;
-    if (timerTime === 0) {
-      this.setState({ timerTime: 600 });
-    }
     this.setState({ timerTime: timerTime - 1 });
   }
 

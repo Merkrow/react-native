@@ -3,6 +3,7 @@ const {
     GraphQLList,
     GraphQLNonNull,
     GraphQLInt,
+    GraphQLString,
 } = require('graphql');
 
 const { OrderModel, OrderType, OrderInput } = require('../../models/Order');
@@ -42,8 +43,22 @@ const ActiveOrder = {
   }
 }
 
+const findUserOrders = {
+  type: new GraphQLList(OrderType),
+  args: {
+    orders: {
+      name: "orders",
+      type: new GraphQLList(GraphQLString)
+    }
+  },
+  resolve (root, params, options) {
+    return OrderModel.findAll({ where: { id: params.orders }});
+  }
+}
+
 module.exports = {
   Order,
   Orders,
   ActiveOrder,
+  findUserOrders,
 }
