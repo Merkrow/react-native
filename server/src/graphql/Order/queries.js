@@ -39,7 +39,7 @@ const ActiveOrder = {
     }
   },
   resolve (root, params, options) {
-    return OrderModel.findOne({ where: { customerId: params.customerId, status: ['active', 'acceptByDriver'] }});
+    return OrderModel.findOne({ where: { customerId: params.customerId, status: { $not: ['cancel', 'done'] } }});
   }
 }
 

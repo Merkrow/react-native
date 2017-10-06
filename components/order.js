@@ -113,6 +113,9 @@ class OrderComponent extends React.Component {
   countTop = () => {
     const { markers } = this.props;
     const listLength = markers.filter(marker => marker !== null).length;
+    if (this.props.order !== null) {
+      return height;
+    }
     return height - 112 - (listLength <= 2 ? 0 : listLength - 2) * 56 - (this.props.lastField - 1) * 56;
   }
 

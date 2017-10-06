@@ -3,6 +3,7 @@ const bodyParser = require('koa-bodyparser');
 const koaRouter = require('koa-router');
 const koaBody = require('koa-bodyparser');
 const IO = require('koa-socket');
+const needle = require('needle');
 
 const schema = require('./src/schema');
 const db = require('./src/db');
@@ -33,6 +34,9 @@ app.use(router.allowedMethods());
 
 io.attach(app);
 
+const API_KEY = 'AIzaSyB01muOUPXMrSoNJYQVS3aXaNgKQF-b9zA';
+const mode = 'driving';
+
 app._io.on('connection', (socket) => {
   socket.on('cancel order by customer', async (order) => {
     try {
@@ -40,12 +44,13 @@ app._io.on('connection', (socket) => {
     } catch (err) {
       console.log(err);
     }
-    app._io.emit(`cancel order ${order.id}`, true);
+    socket.emit(`cancel order ${order.id}`, true);
+    app._io.emit('cancelOrder', order.id);
   })
 
   socket.on('get all orders', async () => {
     try {
-      const Orders = await OrderModel.findAll({ where: { status: 'active' } });
+      const Orders = await OrderModel.findAll({ where: { $not: { status: ['cancel', 'done'] } } });
       app._io.emit('allOrders', Orders);
     } catch(err) {
       console.log(err);
@@ -67,7 +72,6 @@ app._io.on('connection', (socket) => {
   })
 
   socket.on('accept order by driver', async (order) => {
-    console.log(order);
     try {
       await OrderModel.update(Object.assign(order, { status: 'acceptByDriver' }), { where: { id: order.id }});
       const newOrder = await OrderModel.findById(order.id);
@@ -76,6 +80,35 @@ app._io.on('connection', (socket) => {
     } catch(err) {
       console.log(err);
     }
+  })
+
+  socket.on('get path', async ({ startLoc, destinationLoc, order }) => {
+      needle('get', `https://maps.googleapis.com/maps/api/directions/json?origin=${startLoc}&destination=${destinationLoc}&key=${API_KEY}&mode=${mode}`)
+      .then((resp) => {
+        socket.emit('getPath', { path: resp.body, order });
+      });
+  })
+
+  socket.on('enter taxi', async (order) => {
+    await OrderModel.update(Object.assign(order, { status: 'taxiRiding' }), { where: { id: order.id }});
+    const newOrder = await OrderModel.findById(order.id);
+    socket.emit(`update order ${order.id}`, newOrder);
+    app._io.emit('updateOrder', newOrder);
+  })
+
+  socket.on('driver position', ({ coordinate, id }) => {
+    app._io.emit(`driver position ${id}`, coordinate);
+  })
+
+  socket.on('finish ride', async (order) => {
+    await OrderModel.update(Object.assign(order, { status: 'done' }), { where: { id: order.id }});
+    app._io.emit('cancelOrder', order.id);
+  })
+
+  socket.on('car arrived', async (order) => {
+    await OrderModel.update(Object.assign(order, { status: 'carArrived' }), { where: { id: order.id }});
+    const newOrder = await OrderModel.findById(order.id);
+    app._io.emit(`car arrived ${order.id}`, newOrder);
   })
 
   socket.on('reject order by driver', async (order) => {

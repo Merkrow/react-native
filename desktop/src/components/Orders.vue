@@ -23,12 +23,15 @@
 
 <script>
 import * as moment from 'moment';
+import Polyline from '@mapbox/polyline';
 
 export default {
   name: 'orders',
   data() {
     return {
       orders: [],
+      driverPosition: null,
+      intervals: {},
     };
   },
   sockets: {
@@ -49,6 +52,27 @@ export default {
         return prev;
       });
     },
+    cancelOrder(id) {
+      this.orders = this.orders.filter(order => order.id !== id);
+    },
+    getPath({ path, order }) {
+      const points = Polyline.decode(path.routes[0].overview_polyline.points);
+      const coords = points.map(point => ({
+        latitude: point[0],
+        longitude: point[1],
+      }));
+      this.driverPosition = coords;
+      let i = 0;
+      this.intervals[order.id] = setInterval(() => {
+        if (i === coords.length - 1) {
+          this.$socket.emit('car arrived', order);
+          clearInterval(this.intervals[order.id]);
+          return;
+        }
+        this.$socket.emit('driver position', { coordinate: coords[i], id: order.id });
+        i += 1;
+      }, 2000);
+    },
   },
   methods: {
     getDate(date) {
@@ -60,6 +84,13 @@ export default {
     },
     acceptOrder(order) {
       this.$socket.emit('accept order by driver', order);
+      this.fetchRoad(order);
+    },
+    fetchRoad(order) {
+      const { longitude, latitude } = order.path[0].coordinate;
+      const destinationLoc = `${latitude}, ${longitude}`;
+      const startLoc = `${latitude - 0.03}, ${longitude - 0.03}`;
+      this.$socket.emit('get path', { destinationLoc, startLoc, order });
     },
   },
 };

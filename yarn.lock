@@ -4697,6 +4697,10 @@ react-native-maps@^0.16.3:
   version "0.16.4"
   resolved "https://registry.yarnpkg.com/react-native-maps/-/react-native-maps-0.16.4.tgz#c18c3cab8cd0ce05431cd74dac11a39afaa579e4"
 
+react-native-push-notification@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/react-native-push-notification/-/react-native-push-notification-3.0.1.tgz#0e23db302d03bb4a3f28dc072dcaf2a9a1178ed8"
+
 react-native-safe-module@^1.1.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/react-native-safe-module/-/react-native-safe-module-1.2.0.tgz#a23824ca24edc2901913694a76646475113d570d"
@@ -5893,6 +5897,10 @@ ultron@1.0.x:
 ultron@~1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/ultron/-/ultron-1.1.0.tgz#b07a2e6a541a815fc6a34ccd4533baec307ca864"
+
+undefined@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/undefined/-/undefined-0.1.0.tgz#9b706a4b32ad30c20ca4fe65ddcbbbdac32bded0"
 
 universalify@^0.1.0:
   version "0.1.1"

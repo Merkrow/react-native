@@ -3,7 +3,7 @@ var path = require('path')
 
 module.exports = {
   server: {
-    api_url: 'http://192.168.164.126:3000',
+    api_url: 'http://192.168.164.103:3000',
   },
   build: {
     env: require('./prod.env'),

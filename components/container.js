@@ -82,6 +82,7 @@ class Container extends React.Component {
       distance: 0,
       cost: 30,
       ordersList: false,
+      driverCoordinates: null,
     }
 
     this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
@@ -131,7 +132,7 @@ class Container extends React.Component {
 
   async getDirections(startLoc, destinationLoc) {
     try {
-      let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc }&destination=${ destinationLoc }&key=${API_KEY}&mode=${mode}`)
+      let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc }&destination=${ destinationLoc }&key=${API_KEY}&mode=${mode}`);
       let respJson = await resp.json();
       let points = Polyline.decode(respJson.routes[0].overview_polyline.points);
       const distance = respJson.routes[0].legs[0].distance.value;
@@ -150,7 +151,7 @@ class Container extends React.Component {
 
   async getAddress(coordinate) {
     try {
-      let resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinate}&key=${API_KEY}&language=ru&components=route`)
+      let resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinate}&key=${API_KEY}&language=ru&components=route`);
       let respJson = await resp.json();
       return respJson.results[0].formatted_address;
     } catch(error) {
@@ -188,7 +189,7 @@ class Container extends React.Component {
       });
     });
     this.socket.on('order created', async (order) => {
-      this.setState({ order });
+      this.setOrder(order);
       const { email, name, phoneNumber, id, orders } = this.state.user
       const resUser = await this.props.updateUser({
         variables: { email, name, phoneNumber, id, orders: orders.concat(order.id) }
@@ -444,8 +445,24 @@ class Container extends React.Component {
 
   hasActiveOrder = (order) => {
     const { path } = order;
-    this.setState({ order: order, markers: path });
+    this.setOrder(order);
     this.setPolylines(path);
+  }
+
+  setOrder = (order) => {
+    const { path } = order;
+    this.socket.on(`driver position ${order.id}`, (coordinate) => {
+      this.setState({ driverCoordinates: coordinate });
+    })
+    this.socket.on(`car arrived ${order.id}`, order => {
+      if (order) {
+        this.setState({ order });
+      }
+    })
+    this.socket.on(`update order ${order.id}`, (order) => {
+      this.setState({ order });
+    })
+    this.setState({ order, markers: path });
   }
 
   changeCost = (cost) => {
@@ -458,6 +475,27 @@ class Container extends React.Component {
 
   onOrdersListFinish = () => {
     this.setState({ ordersList: false });
+  }
+
+  goToDriverLocation = () => {
+    if (this.state.driverCoordinates === null) {
+      return;
+    }
+    this.setState({ region:
+      Object.assign({}, this.state.driverCoordinates, {
+        latitudeDelta: 0.004622,
+        longitudeDelta: 0.00681
+      })
+    });
+  }
+
+  enterTaxi = () => {
+    this.socket.emit('enter taxi', this.state.order);
+  }
+
+  finishRide = () => {
+    this.socket.emit('finish ride', this.state.order);
+    this.setState({ order: null, markers: new Array(null, null, null, null, null), selector: {}, polylines: [] });
   }
 
   render() {
@@ -515,6 +553,13 @@ class Container extends React.Component {
                 strokeWidth={4}
                 strokeColor="red"/>
             ))}
+            {this.state.driverCoordinates && this.state.order.status === "acceptByDriver" &&
+              <MapView.Marker
+                coordinate={this.state.driverCoordinates}
+              >
+                <Icon name="cab" size={20} color="#f5cc12" />
+              </MapView.Marker>
+            }
             {Object.keys(this.state.selector).length > 0 &&
               <MapView.Marker
                 coordinate={this.state.selector.coordinate}
@@ -663,19 +708,21 @@ class Container extends React.Component {
           }}>
             <Icon name="location-arrow" size={35} color="#1492db" style={{ width: 35 }} />
           </TouchableOpacity>
-          <View style={{
-            position: 'absolute',
-            right: 25,
-            width: 100,
-            height: 40,
-            bottom: 135 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
-            justifyContent: 'center',
-            backgroundColor: 'rgba(130, 130, 130, 0.5)',
-            borderRadius: 100,
-          }}>
-            <Text style={{ fontSize: 18, marginLeft: 7 }}>{`${this.state.cost}uah`}</Text>
-          </View>
-          <TouchableOpacity
+          { this.state.order === null &&
+            <View style={{
+              position: 'absolute',
+              right: 25,
+              width: 100,
+              height: 40,
+              bottom: 135 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+              justifyContent: 'center',
+              backgroundColor: 'rgba(130, 130, 130, 0.5)',
+              borderRadius: 100,
+            }}>
+              <Text style={{ fontSize: 18, marginLeft: 7 }}>{`${this.state.cost}uah`}</Text>
+            </View>
+          }
+          { this.state.order === null ? <TouchableOpacity
           onPress={this.toggleOrderView}
           style={{
             position: 'absolute',
@@ -690,7 +737,60 @@ class Container extends React.Component {
             justifyContent: 'center',
           }}>
             <Icon name="long-arrow-right" size={27} color="#000" style={{ width: 27 }} />
+          </TouchableOpacity> :
+            this.state.order.status === "acceptByDriver" && this.state.order.status !== 'taxiRiding' ?
+          <TouchableOpacity
+          onPress={this.goToDriverLocation}
+          style={{
+            position: 'absolute',
+            right: 5,
+            borderRadius: 50,
+            backgroundColor: '#f5cc12',
+            height: 50,
+            width: 50,
+            bottom: 130,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden'
+          }}>
+            <Icon name="cab" size={22} color="#000" />
+          </TouchableOpacity> :
+          this.state.order.status !== 'taxiRiding' && <TouchableOpacity
+          onPress={this.enterTaxi}
+          style={{
+            position: 'absolute',
+            right: 5,
+            borderRadius: 50,
+            backgroundColor: '#f5cc12',
+            height: 50,
+            width: 50,
+            bottom: 130,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden'
+          }}>
+            <Icon name="sign-in" size={22} color="#000" />
+          </TouchableOpacity> ||
+          <TouchableOpacity
+          onPress={this.finishRide}
+          style={{
+            position: 'absolute',
+            right: 5,
+            borderRadius: 50,
+            backgroundColor: '#f5cc12',
+            height: 50,
+            width: 50,
+            bottom: 130,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden'
+          }}>
+            <Icon name="sign-out" size={22} color="#000" />
           </TouchableOpacity>
+          }
           <Order
             openAutocomplete={this.openAutocomplete}
             onRemoveTextPress={this.onRemoveTextPress}
@@ -705,6 +805,7 @@ class Container extends React.Component {
             orderTaxi={this.orderTaxi}
             cost={this.state.cost}
             changeCost={this.changeCost}
+            order={this.state.order}
           />
         </Animated.View>
         { this.state.orderView && <Animated.View style={[styles.header, { opacity: this.state.fadeAnim }]}>
@@ -757,7 +858,7 @@ class Container extends React.Component {
           }
         { this.state.showAuthForm && <Auth onComplete={this.onCompleteAuth} /> }
         { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/> }
-        { this.state.order !== null && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
+        { this.state.order !== null && this.state.order.status === 'active' && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
         { this.state.ordersList && this.state.user !== null && <Trips orders={this.state.user.orders} onComplete={this.onOrdersListFinish} /> }
       </View>
     );

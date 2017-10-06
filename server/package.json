@@ -20,6 +20,7 @@
     "koa-router": "^7.2.1",
     "koa-socket": "^4.4.0",
     "koa2-cors": "^2.0.3",
+    "needle": "^2.0.1",
     "pg": "^7.3.0",
     "sequelize": "^4.8.4"
   }
