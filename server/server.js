@@ -37,6 +37,12 @@ io.attach(app);
 const API_KEY = 'AIzaSyB01muOUPXMrSoNJYQVS3aXaNgKQF-b9zA';
 const mode = 'driving';
 
+process.setMaxListeners(500);
+require('events').EventEmitter.prototype._maxListeners = 500;
+
+const timers = {};
+const values = {};
+
 app._io.on('connection', (socket) => {
   socket.on('cancel order by customer', async (order) => {
     try {
@@ -46,6 +52,7 @@ app._io.on('connection', (socket) => {
     }
     socket.emit(`cancel order ${order.id}`, true);
     app._io.emit('cancelOrder', order.id);
+    clearInterval(timers[order.id]);
   })
 
   socket.on('get all orders', async () => {
@@ -64,6 +71,7 @@ app._io.on('connection', (socket) => {
       if (!newOrder) {
         throw new Error('Error adding new order');
       }
+      setTimer(newOrder.dataValues);
       app._io.emit('newOrder', newOrder);
       socket.emit('order created', newOrder);
     } catch(err) {
@@ -77,6 +85,8 @@ app._io.on('connection', (socket) => {
       const newOrder = await OrderModel.findById(order.id);
       socket.emit('updateOrder', newOrder);
       app._io.emit(`update order ${order.customerId}`, newOrder);
+      clearInterval(timers[order.id]);
+      delete values[order.id];
     } catch(err) {
       console.log(err);
     }
@@ -112,12 +122,33 @@ app._io.on('connection', (socket) => {
   })
 
   socket.on('reject order by driver', async (order) => {
-
+    await OrderModel.update(Object.assign(order, { status: 'active' }), { where: { id: order.id }});
+    const newOrder = await OrderModel.findById(order.id);
+    app._io.emit('updateOrder', newOrder);
+    app._io.emit(`update order ${order.id}`, newOrder);
   })
+
+  socket.on('get timer', (order) => {
+    socket.emit('timer response', values[order.id]);
+  })
+
+  const setTimer = (order) => {
+    values[order.id] = 600;
+    timers[order.id] = setInterval(() => {
+      values[order.id] -= 1;
+      if (values[order.id] === 0) {
+        delete values[order.id];
+        OrderModel.update(Object.assign(order, { status: 'cancel' }), { where: { id: order.id } });
+        app._io.emit(`cancel order ${order.id}`, true);
+        app._io.emit('cancelOrder', order.id);
+      }
+    }, 1000);
+  }
+
 })
 
 
-async function start() {
+const start = async () => {
   const connection = await db.sync();
   if(connection) {
     app.listen(3000);

@@ -20,6 +20,10 @@ class ActiveOrderComponent extends React.Component {
         this.props.cancelOrder();
       }
     })
+    this.props.socket.emit('get timer', this.props.order);
+    this.props.socket.on('timer response', timer => {
+      this.setState({ timerTime: timer });
+    });
     this.interval = window.setInterval(this.timerCountdown, 1000);
   }
 

@@ -6,6 +6,7 @@ import { graphql, gql, compose } from 'react-apollo'
 import PropTypes from 'prop-types';
 import io from 'socket.io-client';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import Spinner from 'react-native-loading-spinner-overlay';
 
 import config from '../config/config';
 
@@ -83,6 +84,7 @@ class Container extends React.Component {
       cost: 30,
       ordersList: false,
       driverCoordinates: null,
+      visible: false
     }
 
     this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
@@ -170,7 +172,16 @@ class Container extends React.Component {
     });
   }
 
+  showSpinner = () => {
+    this.setState({ visible: true });
+  }
+
+  hideSpinner = () => {
+    this.setState({ visible: false })
+  }
+
   async componentDidMount() {
+    this.showSpinner();
     window.setInterval(this.setCurrentPos.bind(this), 10000);
     await this.getUser();
     navigator.geolocation.getCurrentPosition(pos => {
@@ -402,9 +413,11 @@ class Container extends React.Component {
   }
 
   orderTaxi = async () => {
+    this.showSpinner();
     const markers = this.state.markers.filter(marker => marker !== null).map(marker => ({ coordinate: marker.coordinate, description: marker.description }));
     if (markers.length < 2 || !this.state.user) return;
     const { cost } = this.state;
+    this.toggleOrderView();
     // const res = await this.props.createOrder({
     //   variables: { path: markers, customerId: this.state.user.id, cost }
     // });
@@ -462,7 +475,7 @@ class Container extends React.Component {
     this.socket.on(`update order ${order.id}`, (order) => {
       this.setState({ order });
     })
-    this.setState({ order, markers: path });
+    this.setState({ order, markers: path, visible: false });
   }
 
   changeCost = (cost) => {
@@ -495,7 +508,7 @@ class Container extends React.Component {
 
   finishRide = () => {
     this.socket.emit('finish ride', this.state.order);
-    this.setState({ order: null, markers: new Array(null, null, null, null, null), selector: {}, polylines: [] });
+    this.setState({ order: null, markers: new Array(null, null, null, null, null), selector: {}, polylines: [], cost: 30 });
   }
 
   render() {
@@ -806,6 +819,7 @@ class Container extends React.Component {
             cost={this.state.cost}
             changeCost={this.changeCost}
             order={this.state.order}
+            hideSpinner={this.hideSpinner}
           />
         </Animated.View>
         { this.state.orderView && <Animated.View style={[styles.header, { opacity: this.state.fadeAnim }]}>
@@ -860,6 +874,7 @@ class Container extends React.Component {
         { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/> }
         { this.state.order !== null && this.state.order.status === 'active' && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
         { this.state.ordersList && this.state.user !== null && <Trips orders={this.state.user.orders} onComplete={this.onOrdersListFinish} /> }
+        <Spinner visible={this.state.visible} />
       </View>
     );
   }

@@ -86,7 +86,11 @@ class OrderComponent extends React.Component {
   componentDidUpdate(prevProps) {
     const order = this.props.findActiveOrder.ActiveOrder;
     if (order && prevProps.findActiveOrder.loading && !this.props.findActiveOrder.loading) {
+      this.props.hideSpinner();
       this.props.hasActiveOrder(order);
+    }
+    if (!order && prevProps.findActiveOrder.loading && !this.props.findActiveOrder.loading) {
+      this.props.hideSpinner();
     }
     if (this.props.orderView !== prevProps.orderView && this.props.orderView) {
       Animated.timing(
