@@ -35,9 +35,9 @@ const defaultStyles = {
   },
   textInput: {
     position: 'absolute',
-    left: 75,
-    right: 75,
-    top: 35,
+    left: 60,
+    right: 50,
+    top: 43,
     color: '#5d5d5d',
     fontSize: 16,
     borderRadius: 3,
@@ -50,8 +50,8 @@ const defaultStyles = {
   textInputFocused: {
     position: 'absolute',
     left: 10,
-    right: 100,
-    top: 35,
+    right: 50,
+    top: 43,
     color: '#5d5d5d',
     fontSize: 16,
     borderRadius: 3,
@@ -99,10 +99,9 @@ const defaultStyles = {
   },
   cancelButton: {
     position: 'absolute',
-    right: 25,
+    right: 15,
     color: '#1492db',
-    fontSize: 20,
-    top: 35,
+    top: 43,
   }
 };
 
@@ -724,7 +723,9 @@ export default class GooglePlacesAutocomplete extends Component {
               { ...userProps }
               onChangeText={this._handleChangeText}
             />
-            {this.state.focused === true && <Text style={defaultStyles.cancelButton} onPress={() => this._closeAutocomplete()}>Cancel</Text>}
+            {this.state.focused === true && <Text style={defaultStyles.cancelButton} onPress={() => this._closeAutocomplete()}>
+              <Icon name="close" size={25} color="#1492db" />
+            </Text>}
             {this._renderRightButton()}
           </View>
         }

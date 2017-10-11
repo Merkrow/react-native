@@ -1,9 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, Dimensions, } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, Dimensions, Alert, } from 'react-native';
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
 import { graphql, gql, compose } from 'react-apollo'
-import PropTypes from 'prop-types';
 import io from 'socket.io-client';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import Spinner from 'react-native-loading-spinner-overlay';
@@ -15,6 +14,7 @@ import Profile from './profile';
 import Order from './order';
 import ActiveOrder from './ActiveOrder';
 import Trips from './trips';
+import FB from './FunctionalButton';
 
 import { GooglePlacesAutocomplete } from './autocomplete';
 
@@ -84,24 +84,13 @@ class Container extends React.Component {
       cost: 30,
       ordersList: false,
       driverCoordinates: null,
-      visible: false
+      spinnerVisible: false
     }
 
     this.socket = io(`${config.api_url}`, { transports: ['websocket'] });
-
-    this.onRegionChange = this.onRegionChange.bind(this);
-    this.onMapPress = this.onMapPress.bind(this);
-    this.onMarkerPress = this.onMarkerPress.bind(this);
-    this.autocompletePress = this.autocompletePress.bind(this);
-    this.onAucompletePressIndex = this.onAucompletePressIndex.bind(this);
-    this.blurAutocomplete = this.blurAutocomplete.bind(this);
-    this.triggerMenu = this.triggerMenu.bind(this);
-    this.onCompleteAuth = this.onCompleteAuth.bind(this);
-    this.saveUser = this.saveUser.bind(this);
-    this.getUser = this.getUser.bind(this);
   }
 
-  onCompleteAuth(user) {
+  onCompleteAuth = (user) => {
     if (user) {
       this.updateUser(user);
     }
@@ -113,7 +102,7 @@ class Container extends React.Component {
     this.saveUser(user);
   }
 
-  async saveUser(user) {
+  saveUser = async (user) => {
     try {
       await AsyncStorage.setItem('user', JSON.stringify(user));
     } catch (error) {
@@ -121,7 +110,7 @@ class Container extends React.Component {
     }
   }
 
-  async getUser() {
+  getUser = async () => {
     try {
       const user = await AsyncStorage.getItem('user');
       if (user !== null) {
@@ -134,11 +123,13 @@ class Container extends React.Component {
 
   async getDirections(startLoc, destinationLoc) {
     try {
-      let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc }&destination=${ destinationLoc }&key=${API_KEY}&mode=${mode}`);
-      let respJson = await resp.json();
-      let points = Polyline.decode(respJson.routes[0].overview_polyline.points);
+      const resp = await fetch(
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${startLoc}&destination=${destinationLoc}&key=${API_KEY}&mode=${mode}`
+      );
+      const respJson = await resp.json();
+      const points = Polyline.decode(respJson.routes[0].overview_polyline.points);
       const distance = respJson.routes[0].legs[0].distance.value;
-      let coords = points.map((point, index) => {
+      const coords = points.map((point, index) => {
         return  {
           latitude : point[0],
           longitude : point[1],
@@ -153,8 +144,10 @@ class Container extends React.Component {
 
   async getAddress(coordinate) {
     try {
-      let resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinate}&key=${API_KEY}&language=ru&components=route`);
-      let respJson = await resp.json();
+      const resp = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinate}&key=${API_KEY}&language=ru&components=route`
+      );
+      const respJson = await resp.json();
       return respJson.results[0].formatted_address;
     } catch(error) {
       return error;
@@ -173,11 +166,11 @@ class Container extends React.Component {
   }
 
   showSpinner = () => {
-    this.setState({ visible: true });
+    this.setState({ spinnerVisible: true });
   }
 
   hideSpinner = () => {
-    this.setState({ visible: false })
+    this.setState({ spinnerVisible: false })
   }
 
   async componentDidMount() {
@@ -211,7 +204,7 @@ class Container extends React.Component {
     })
   }
 
-  onRegionChange(region) {
+  onRegionChange = (region) => {
     this.setState({ region, });
   }
 
@@ -225,39 +218,15 @@ class Container extends React.Component {
     }, null);
   }
 
-  async onMapPress(marker) {
+  onMapPress = async (marker) => {
     const { latitude, longitude } = marker.coordinate;
     const address = await this.getAddress(`${latitude}, ${longitude}`);
-    // if (this.state.markers.length >= 1) {
-    //   this.setPolylines(this.state.markers.concat(marker));
-    // }
     this.setState({ selector: Object.assign(marker, { description: address } ) });
   }
 
-  onMarkerPress(marker) {
-    const { latitude, longitude } = marker.coordinate;
-    this.setState({ polylines: [] });
-    const markers = this.state.markers.filter(mark => !(mark.coordinate.latitude === latitude && mark.coordinate.longitude === longitude));
-    if (markers.length > 1) {
-      this.setPolylines(markers);
-    }
-    this.setState({ markers });
-  }
-
-  handleKeyPress(event) {
-    if (event.key === 'Enter') {
-
-    }
-  }
-
-  async autocompletePress(data, details) {
+  autocompletePress = async (data, details) => {
     const { lat, lng } = details.geometry.location;
     const description = await this.getAddress(`${lat}, ${lng}`);
-    // const { markers } = this.state;
-    // markers[0] = { coordinate: { longitude: lng, latitude: lat }, description };
-    // if (markers.length > 1) {
-    //   this.setPolylines(markers);
-    // }
 
     this.map.animateToRegion({
         latitudeDelta: 0.004622,
@@ -275,19 +244,15 @@ class Container extends React.Component {
     return data;
   }
 
-  onTextPress(i) {
-    const marker = this.state.markers[i];
-  }
-
   addMarker = (marker) => {
     const { markers } = this.state;
     const index = markers.indexOf(null);
     if (index === -1) return;
     const newMarkers = markers.map((prev, i) => i === index ? marker : prev);
-      this.setState({ markers: newMarkers, selector: {}, });
-      if (index > 0) {
-        this.setPolylines(newMarkers.slice(0, index + 1));
-      }
+    this.setState({ markers: newMarkers, selector: {}, });
+    if (index > 0) {
+      this.setPolylines(newMarkers.slice(0, index + 1));
+    }
   }
 
   componentDidUpdate(prevProps, prevState) {
@@ -335,13 +300,13 @@ class Container extends React.Component {
     });
   }
 
-  triggerMenu() {
+  triggerMenu = () => {
     if (!this.state.showMenu) {
       Animated.timing(
         this.state.xPosition,
         {
           toValue: 250,
-          duration: 1000,
+          duration: 250,
         }
       ).start();
     } else {
@@ -349,14 +314,14 @@ class Container extends React.Component {
         this.state.xPosition,
         {
           toValue: 0,
-          duration: 1000,
+          duration: 250,
         }
       ).start();
     }
     this.setState({ showMenu: !this.state.showMenu });
   }
 
-  async onAucompletePressIndex(data, details) {
+  onAucompletePressIndex = async (data, details) => {
     const { lat, lng } = details.geometry.location;
     const { index } = this.state.selectedInput;
     const description = await this.getAddress(`${lat}, ${lng}`);
@@ -378,7 +343,7 @@ class Container extends React.Component {
     return data;
   }
 
-  blurAutocomplete() {
+  blurAutocomplete = () => {
     this.setState({ selectedInput: null });
   }
 
@@ -388,6 +353,7 @@ class Container extends React.Component {
 
   logout = () => {
     this.setState({ user: null });
+    AsyncStorage.removeItem('user');
   }
 
   toggleProfile = () => {
@@ -418,19 +384,7 @@ class Container extends React.Component {
     if (markers.length < 2 || !this.state.user) return;
     const { cost } = this.state;
     this.toggleOrderView();
-    // const res = await this.props.createOrder({
-    //   variables: { path: markers, customerId: this.state.user.id, cost }
-    // });
-    // if (res.data.OrderCreate) {
-    //   this.setState({ order: res.data.OrderCreate });
-    //   const { email, name, phoneNumber, id, orders } = this.state.user
-    //   const resUser = await this.props.updateUser({
-    //     variables: { email, name, phoneNumber, id, orders: orders.concat(res.data.OrderCreate.id) }
-    //   });
-    //   if (resUser.data.UserUpdate) {
-    //     this.updateUser(resUser.data.UserUpdate);
-    //   }
-    // }
+
     this.socket.emit('create order', { path: markers, customerId: this.state.user.id, cost });
   }
 
@@ -440,7 +394,7 @@ class Container extends React.Component {
         this.state.fadeAnim,
         {
           toValue: 1,
-          duration: 500,
+          duration: 250,
         }
       ).start();
       this.setState({ orderView: !this.state.orderView })
@@ -449,10 +403,10 @@ class Container extends React.Component {
         this.state.fadeAnim,
         {
           toValue: 0,
-          duration: 500,
+          duration: 250,
         }
       ).start();
-      setTimeout(() => this.setState({ orderView: !this.state.orderView }), 500);
+      setTimeout(() => this.setState({ orderView: !this.state.orderView }), 250);
     }
   }
 
@@ -475,7 +429,7 @@ class Container extends React.Component {
     this.socket.on(`update order ${order.id}`, (order) => {
       this.setState({ order });
     })
-    this.setState({ order, markers: path, visible: false });
+    this.setState({ order, markers: path, spinnerVisible: false });
   }
 
   changeCost = (cost) => {
@@ -483,7 +437,7 @@ class Container extends React.Component {
   }
 
   triggerOrdersList = () => {
-    this.setState({ ordersList: true });
+    this.setState({ ordersList: true, spinnerVisible: true });
   }
 
   onOrdersListFinish = () => {
@@ -511,6 +465,74 @@ class Container extends React.Component {
     this.setState({ order: null, markers: new Array(null, null, null, null, null), selector: {}, polylines: [], cost: 30 });
   }
 
+  cancel = () => {
+    Alert.alert(
+      'Cancel order',
+      'Are you sure you want to cancel order?',
+      [
+        {text: 'Yes', onPress: () => this.socket.emit('cancel order by customer', this.state.order)},
+        {text: 'No', onPress: () => console.log('Cancel Pressed'), style: 'cancel'},
+      ]
+    )
+    this.socket.on(`cancel order ${this.state.order.id}`, res => {
+      if (res) {
+        this.cancelOrder();
+      }
+    })
+  }
+
+  renderOrderFB = () => {
+    const { order, lastField } = this.state;
+    const { markers } = this.state;
+    const markersLength = markers.filter(marker => marker !== null).length;
+
+    if (order === null) {
+      return (
+        <FB
+          buttonStyle={{
+            bottom: 130 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+            backgroundColor: '#f5cc12',
+          }}
+          iconName="long-arrow-right" iconSize={27} iconColor="#000"
+          onPress={this.toggleOrderView}
+        />)
+    }
+    if (order.status === "acceptByDriver" && order.status !== 'taxiRiding') {
+      return (
+        <FB
+          buttonStyle={{
+            bottom: 130,
+            backgroundColor: '#f5cc12',
+          }}
+          iconName="cab" iconSize={22} iconColor="#000"
+          onPress={this.goToDriverLocation}
+        />
+      )
+    }
+    if (order.status !== 'taxiRiding') {
+      return (
+        <FB
+          buttonStyle={{
+            bottom: 130,
+            backgroundColor: '#f5cc12',
+          }}
+          iconName="sign-in" iconSize={22} iconColor="#000"
+          onPress={this.enterTaxi}
+        />
+      )
+    }
+    return (
+      <FB
+        buttonStyle={{
+          bottom: 130,
+          backgroundColor: '#f5cc12',
+        }}
+        iconName="sign-out" iconSize={22} iconColor="#000"
+        onPress={this.finishRide}
+      />
+    )
+  }
+
   render() {
     const { latitude, longitude } = this.state.region;
     const { userCoordinates, markers } = this.state;
@@ -525,7 +547,7 @@ class Container extends React.Component {
                 onPress={this.logout}>
                 <Icon name="sign-out" size={30} color="#fff" style={{ width: 30 }} />
               </Text> :
-              <Text style={{ position: 'absolute', top: 30, left: 30 }} onPress={this.toggleAuthForm}>Sign in</Text>
+              <Text style={{ position: 'absolute', top: 30, left: 30, fontSize: 16, }} onPress={this.toggleAuthForm}>Sign in</Text>
             }
             { this.state.user ?
               <Text
@@ -539,10 +561,6 @@ class Container extends React.Component {
           <TouchableOpacity onPress={this.triggerOrdersList} style={styles.menuRow}>
             <Icon name="bookmark" size={25} color="#1492db" style={styles.menuIcon} />
             <Text style={styles.menuText}>My trips</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuRow}>
-            <Icon name="star-o" size={25} color="#1492db" style={styles.menuIcon} />
-            <Text style={styles.menuText}>My addresses</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Linking.openURL('mailto:react.native.taxi@gmail.com?subject=Support&body=body')} style={styles.menuRow}>
             <Icon name="support" size={25} color="#1492db" style={styles.menuIcon} />
@@ -566,7 +584,7 @@ class Container extends React.Component {
                 strokeWidth={4}
                 strokeColor="red"/>
             ))}
-            {this.state.driverCoordinates && this.state.order.status === "acceptByDriver" &&
+            {this.state.driverCoordinates && this.state.order && this.state.order.status === "acceptByDriver" &&
               <MapView.Marker
                 coordinate={this.state.driverCoordinates}
               >
@@ -622,7 +640,6 @@ class Container extends React.Component {
                     description={`${marker.description.split(', ')[0]}, ${marker.description.split(', ')[1]}`}
                     coordinate={marker.coordinate}
                     onPress={e => e.stopPropagation()}
-                    onCalloutPress={e => {e.stopPropagation(); this.onMarkerPress(marker)}}
                   >
                     <View style={{
                       height: 30,
@@ -670,7 +687,7 @@ class Container extends React.Component {
             flex: 0,
             backgroundColor: '#fff'
           }}>
-            <Text onPress={this.triggerMenu} style={{ position: 'absolute', left: 28, top: 34, color: '#000', }}>
+            <Text onPress={this.triggerMenu} style={{ position: 'absolute', left: 20, top: 41, color: '#000', }}>
               <Icon name="gear" size={30} color="#1492db" style={{ width: 30 }} />
             </Text>
             <GooglePlacesAutocomplete
@@ -705,105 +722,25 @@ class Container extends React.Component {
               onPress={this.autocompletePress}
             />
           </View>
-          <TouchableOpacity
-          onPress={this.goToUserLocation}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#fff',
-            height: 50,
-            width: 50,
-            bottom: 200 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Icon name="location-arrow" size={35} color="#1492db" style={{ width: 35 }} />
-          </TouchableOpacity>
+          <FB buttonStyle={{ bottom: 200 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56, backgroundColor: '#fff', }}
+            iconName="location-arrow" iconSize={35} iconColor="#1492db"
+            onPress={this.goToUserLocation}
+          />
           { this.state.order === null &&
             <View style={{
               position: 'absolute',
               right: 25,
-              width: 100,
-              height: 40,
+              width: 170,
+              height: 45,
               bottom: 135 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
               justifyContent: 'center',
-              backgroundColor: 'rgba(130, 130, 130, 0.5)',
+              backgroundColor: 'rgba(255, 255, 255, 0.5)',
               borderRadius: 100,
             }}>
-              <Text style={{ fontSize: 18, marginLeft: 7 }}>{`${this.state.cost}uah`}</Text>
+              <Text style={{ fontSize: 18, marginLeft: 10 }}>from<Text style={{ fontSize: 25, fontWeight: 'bold' }}>{` ${this.state.cost}`}</Text>UAH</Text>
             </View>
           }
-          { this.state.order === null ? <TouchableOpacity
-          onPress={this.toggleOrderView}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#f5cc12',
-            height: 50,
-            width: 50,
-            bottom: 130 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Icon name="long-arrow-right" size={27} color="#000" style={{ width: 27 }} />
-          </TouchableOpacity> :
-            this.state.order.status === "acceptByDriver" && this.state.order.status !== 'taxiRiding' ?
-          <TouchableOpacity
-          onPress={this.goToDriverLocation}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#f5cc12',
-            height: 50,
-            width: 50,
-            bottom: 130,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}>
-            <Icon name="cab" size={22} color="#000" />
-          </TouchableOpacity> :
-          this.state.order.status !== 'taxiRiding' && <TouchableOpacity
-          onPress={this.enterTaxi}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#f5cc12',
-            height: 50,
-            width: 50,
-            bottom: 130,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}>
-            <Icon name="sign-in" size={22} color="#000" />
-          </TouchableOpacity> ||
-          <TouchableOpacity
-          onPress={this.finishRide}
-          style={{
-            position: 'absolute',
-            right: 5,
-            borderRadius: 50,
-            backgroundColor: '#f5cc12',
-            height: 50,
-            width: 50,
-            bottom: 130,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}>
-            <Icon name="sign-out" size={22} color="#000" />
-          </TouchableOpacity>
-          }
+          { this.renderOrderFB() }
           <Order
             openAutocomplete={this.openAutocomplete}
             onRemoveTextPress={this.onRemoveTextPress}
@@ -873,8 +810,8 @@ class Container extends React.Component {
         { this.state.showAuthForm && <Auth onComplete={this.onCompleteAuth} /> }
         { this.state.showProfile && <Profile onComplete={this.onUserUpdateComplete} user={this.state.user}/> }
         { this.state.order !== null && this.state.order.status === 'active' && <ActiveOrder socket={this.socket} cancelOrder={this.cancelOrder} order={this.state.order} /> }
-        { this.state.ordersList && this.state.user !== null && <Trips orders={this.state.user.orders} onComplete={this.onOrdersListFinish} /> }
-        <Spinner visible={this.state.visible} />
+        { this.state.ordersList && this.state.user !== null && <Trips orders={this.state.user.orders} hideSpinner={this.hideSpinner} onComplete={this.onOrdersListFinish} /> }
+        <Spinner spinnerVisible={this.state.spinnerVisible} />
       </View>
     );
   }
@@ -921,9 +858,6 @@ const styles = StyleSheet.create({
     marginLeft: 70,
   }
 });
-
-Container.propTypes = {
-}
 
 const ContainerComponent = compose(
   graphql(createOrder, { name: 'createOrder' }),

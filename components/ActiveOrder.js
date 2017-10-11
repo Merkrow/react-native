@@ -2,8 +2,6 @@ import React from 'react';
 import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, Dimensions, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
-import { graphql, gql, compose } from 'react-apollo';
-
 const { width, height } = Dimensions.get('window');
 
 class ActiveOrderComponent extends React.Component {
@@ -73,10 +71,10 @@ class ActiveOrderComponent extends React.Component {
         </View>
         <View style={styles.parameters}>
           <View style={styles.cost}>
-            <Text>{ this.props.order.cost }</Text>
+            <Text style={{ fontSize: 20 }}>{ `${this.props.order.cost}UAH` }</Text>
           </View>
           <View style={styles.cancel}>
-            <Text>{ this.countTime() }</Text>
+            <Text style={{ position: 'absolute', alignItems: 'center', bottom: 80, fontSize: 20, fontWeight: 'bold' }} >{ this.countTime() }</Text>
             <TouchableOpacity
               onPress={this.cancelOrder}
               style={{
@@ -148,7 +146,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   }
 });
-
-// const Order = compose(graphql(findActiveOrder, { name: 'findActiveOrder', options: props => ({ variables: { customerId: props.user.id } }) }))(OrderComponent);
 
 export default ActiveOrderComponent;

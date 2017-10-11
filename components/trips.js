@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, Animated, Dimensions, } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
@@ -25,7 +25,7 @@ const findOrders = gql`
   }
 `
 
-class TripsComponent extends React.Component {
+class TripsComponent extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -33,22 +33,20 @@ class TripsComponent extends React.Component {
     }
   }
 
-  componentDidMount() {
-  }
-
-  componentDidUpdate() {
-
-  }
-
   onComplete = () => {
     this.props.onComplete();
+  }
+
+  componentDidUpdate = () => {
+    if (!this.props.findOrders.loading) {
+      this.props.hideSpinner();
+    }
   }
 
   render() {
     if (this.props.findOrders.loading) {
       return (
         <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-          <Text>Loading</Text>
         </View>
       )
     }
@@ -61,6 +59,7 @@ class TripsComponent extends React.Component {
         </View>
         <ScrollView style={styles.ordersContainer}>
           <Text style={{ fontSize: 20, margin: 5, }}>My trips</Text>
+          { !this.props.findOrders.findUserOrders.length && <Text style={{ fontSize: 20 }}>You have no trips!</Text> }
           { this.props.findOrders.findUserOrders.map((order, i) =>
             <View key={i} style={styles.order}>
               <View style={{ borderBottomWidth: 1, borderBottomColor: '#f2f4f7' }}>

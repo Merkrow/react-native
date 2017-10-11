@@ -53,6 +53,7 @@ app._io.on('connection', (socket) => {
     socket.emit(`cancel order ${order.id}`, true);
     app._io.emit('cancelOrder', order.id);
     clearInterval(timers[order.id]);
+    delete values[order.id];
   })
 
   socket.on('get all orders', async () => {
@@ -84,7 +85,7 @@ app._io.on('connection', (socket) => {
       await OrderModel.update(Object.assign(order, { status: 'acceptByDriver' }), { where: { id: order.id }});
       const newOrder = await OrderModel.findById(order.id);
       socket.emit('updateOrder', newOrder);
-      app._io.emit(`update order ${order.customerId}`, newOrder);
+      app._io.emit(`update order ${order.id}`, newOrder);
       clearInterval(timers[order.id]);
       delete values[order.id];
     } catch(err) {

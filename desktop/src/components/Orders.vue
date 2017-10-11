@@ -3,8 +3,8 @@
     <h1 class="header">Orders: </h1>
     <div v-for="order in orders" class="order">
       <div class="order-header">
-        <button @click="acceptOrder(order)" class="accept-button"><icon name="check" class="check"></icon></button>
-        <button @click="cancelOrder(order)" class="reject-button"><icon name="close" class="close"></icon></button>
+        <button v-if="order.status === 'active'" @click="acceptOrder(order)" class="accept-button"><icon name="check" class="check"></icon></button>
+        <button v-if="order.status === 'acceptByDriver'" @click="cancelOrder(order)" class="reject-button"><icon name="close" class="close"></icon></button>
         <div class="status">{{ order.status }}</div>
         <div class="path">
           <div v-for="path in order.path" class="marker">
@@ -54,6 +54,7 @@ export default {
     },
     cancelOrder(id) {
       this.orders = this.orders.filter(order => order.id !== id);
+      clearInterval(this.intervals[id]);
     },
     getPath({ path, order }) {
       const points = Polyline.decode(path.routes[0].overview_polyline.points);
@@ -87,9 +88,10 @@ export default {
       this.fetchRoad(order);
     },
     fetchRoad(order) {
+      const rand = (Math.random() + 0.5) * 0.02;
       const { longitude, latitude } = order.path[0].coordinate;
       const destinationLoc = `${latitude}, ${longitude}`;
-      const startLoc = `${latitude - 0.03}, ${longitude - 0.03}`;
+      const startLoc = `${latitude - rand}, ${longitude - rand}`;
       this.$socket.emit('get path', { destinationLoc, startLoc, order });
     },
   },

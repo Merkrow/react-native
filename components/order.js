@@ -41,6 +41,9 @@ class OrderComponent extends React.Component {
       return (
         <View key={i} style={styles.markersListItem}>
           <Text style={[styles.markersListText, { color: this.props.orderView ? '#fff' : '#bababa' }]} onPress={() => this.props.openAutocomplete(i)}>{i === 0 ? 'From' : 'To'}</Text>
+          <View style={{ position: 'absolute', left: 5, top: 10, width: 40, height: 40, backgroundColor: i === 0 ? '#80f2b5' : i === markersLength - 1 ? '#e83a76' : '#61b2ed', borderRadius: 150, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 20, }}>{String.fromCharCode(65 + i)}</Text>
+          </View>
         </View>
       )
     }
@@ -97,7 +100,7 @@ class OrderComponent extends React.Component {
         this.state.yPosition,
         {
           toValue: 75,
-          duration: 1000,
+          duration: 250,
         }
       ).start();
     } else if (!this.props.orderView) {
@@ -105,7 +108,7 @@ class OrderComponent extends React.Component {
         this.state.yPosition,
         {
           toValue: this.countTop(),
-          duration: 1000,
+          duration: 250,
         }
       ).start();
     }
@@ -225,7 +228,7 @@ const styles = StyleSheet.create({
     height: 56,
     lineHeight: 55,
     fontSize: 15,
-    paddingLeft: 50,
+    paddingLeft: 65,
   },
   payment: {
     position: 'absolute',
