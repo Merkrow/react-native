@@ -1,29 +1,13 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, Animated, } from 'react-native';
 
 import { graphql, gql, compose } from 'react-apollo';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
-const authUser = gql`
-  mutation AuthUser($phoneNumber: String!, $email: String!) {
-    UserAuthRequest(data: { phoneNumber: $phoneNumber, email: $email })
-  }
-`
+import authUser from '../graphql/users/authUser';
+import loginWithPw from '../graphql/users/loginWithPw';
 
-const loginWithPw = gql`
-  mutation Login($phoneNumber: String!, $code: Int!) {
-    LoginWithPw(data: { phoneNumber: $phoneNumber, pw: $code }) {
-      id
-      phoneNumber
-      email
-      favoritePlaces
-      orders
-      name
-    }
-  }
-`
-
-class AuthComponent extends React.Component {
+class AuthComponent extends Component {
   constructor(props) {
     super(props);
 

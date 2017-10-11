@@ -1,31 +1,13 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { StyleSheet, Text, View, TextInput, Button, ScrollView, StatusBar, TouchableOpacity, Animated, Dimensions, Alert, } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
 import { graphql, gql, compose } from 'react-apollo';
+import findActiveOrder from '../graphql/orders/findActiveOrder';
 
 const { width, height } = Dimensions.get('window');
 
-const findActiveOrder = gql`
-  query findActive($customerId: Int){
-    ActiveOrder(customerId: $customerId) {
-      id
-      customerId
-      driverId
-      cost
-      status
-      path {
-        coordinate {
-          latitude
-          longitude
-        }
-        description
-      }
-    }
-  }
-`
-
-class OrderComponent extends React.Component {
+class OrderComponent extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -34,9 +16,23 @@ class OrderComponent extends React.Component {
     }
   }
 
-  renderMarkerInfoRow(marker, i) {
-    if (marker === null && i > this.props.lastField) return;
-    const markersLength = this.props.markers.filter(marker => marker !== null).length;
+  renderMarkers = () => {
+    const { addOneMoreAddress, markers, addNextField, orderView } = this.props;
+    let renderMarkers = markers;
+    while (renderMarkers.length < 5) {
+      renderMarkers = renderMarkers.concat(null);
+    }
+    return (
+      <View style={{ backgroundColor: orderView ? '#1492db' : '#fff', }}>
+        { renderMarkers.map((marker, i) => this.renderMarkerInfoRow(marker, i)) }
+      </View>
+    )
+  }
+
+  renderMarkerInfoRow(marker = null, i) {
+    const { markers, addOneMoreAddress } = this.props;
+    const markersLength = markers.length;
+    if (marker === null && i > 1 && i >= markersLength + (+addOneMoreAddress)) return;
     if (marker === null) {
       return (
         <View key={i} style={styles.markersListItem}>
@@ -54,7 +50,7 @@ class OrderComponent extends React.Component {
         <View style={{ position: 'absolute', left: 5, top: 10, width: 40, height: 40, backgroundColor: i === 0 ? '#80f2b5' : i === markersLength - 1 ? '#e83a76' : '#61b2ed', borderRadius: 150, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 20, }}>{String.fromCharCode(65 + i)}</Text>
         </View>
-        {this.props.markers[i + 1] !== null || i === 0 || this.props.lastField > i ?
+        { i === 0 || i < markersLength - 1 + (+addOneMoreAddress) || i === 4 ?
           <Text
           onPress={() => this.props.onRemoveTextPress(i)}
           style={{
@@ -65,18 +61,20 @@ class OrderComponent extends React.Component {
             position: 'absolute',
             right: 10,
             top: 17,
-          }}><Icon name="close" size={20} color="#ccc" style={{ width: 20, color: this.props.orderView ? '#fff' : '#000' }} /></Text> :
-          <Text
-          onPress={() => this.props.addNextField()}
-          style={{
-            textAlign: 'center',
-            backgroundColor: 'rgba(0, 0, 0, 0)',
-            fontSize: 25,
-            color: '#1492db',
-            position: 'absolute',
-            right: 10,
-            top: 17,
-          }}><Icon name="plus-circle" size={20} color="#ccc" style={{ width: 20, color: this.props.orderView ? '#fff' : '#000' }} /></Text>
+          }}><Icon name="close" size={20} color="#ccc" style={{ width: 20, color: this.props.orderView ? '#fff' : '#000' }} /></Text> : null
+        }
+        { i === markersLength - 1 + (+addOneMoreAddress) && i !== 0 && i !== 4 &&
+        <Text
+        onPress={() => this.props.addNextField()}
+        style={{
+          textAlign: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0)',
+          fontSize: 25,
+          color: '#1492db',
+          position: 'absolute',
+          right: 10,
+          top: 17,
+        }}><Icon name="plus-circle" size={20} color="#ccc" style={{ width: 20, color: this.props.orderView ? '#fff' : '#000' }} /></Text>
         }
       </View>
     )
@@ -118,12 +116,12 @@ class OrderComponent extends React.Component {
   }
 
   countTop = () => {
-    const { markers } = this.props;
-    const listLength = markers.filter(marker => marker !== null).length;
+    const { markers, addOneMoreAddress } = this.props;
+    const markersLength = markers.length;
     if (this.props.order !== null) {
       return height;
     }
-    return height - 112 - (listLength <= 2 ? 0 : listLength - 2) * 56 - (this.props.lastField - 1) * 56;
+    return height - 112 - (markersLength < 2 ? 0 : (markersLength - 2) * 56) - (+addOneMoreAddress) * 56;
   }
 
   topStyle = () => {
@@ -182,11 +180,9 @@ class OrderComponent extends React.Component {
   render() {
     return (
       <Animated.View style={[styles.markersList, { height: height - 75 }, this.topStyle()]}>
-        <View style={{ backgroundColor: this.props.orderView ? '#1492db' : '#fff', }}>
-          {this.props.markers.map(this.renderMarkerInfoRow.bind(this))}
-        </View>
+        { this.renderMarkers() }
         <View style={styles.payment}>
-        { this.props.markers.filter(marker => marker !== null).length > 1 &&
+        { this.props.markers.length > 1 &&
           <View style={{ width: 150, position: 'relative', height: 50 }}>
             <View style={{ width: 120, position: 'absolute', left: 20, alignItems: 'center' }}>
               <Text style={styles.cost}>{`${this.state.cost}uah`}</Text>

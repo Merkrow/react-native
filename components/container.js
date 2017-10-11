@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, TextInput, Button, StatusBar, TouchableOpacity, Animated, AsyncStorage, Linking, Dimensions, Alert, } from 'react-native';
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
-import { graphql, gql, compose } from 'react-apollo'
+import { graphql, gql, compose } from 'react-apollo';
 import io from 'socket.io-client';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import Spinner from 'react-native-loading-spinner-overlay';
@@ -15,42 +15,20 @@ import Order from './order';
 import ActiveOrder from './ActiveOrder';
 import Trips from './trips';
 import FB from './FunctionalButton';
+import Menu from './Menu';
+
+import createOrder from '../graphql/orders/createOrder';
+import updateUser from '../graphql/users/updateUser';
 
 import { GooglePlacesAutocomplete } from './autocomplete';
 
 const API_KEY = 'AIzaSyB01muOUPXMrSoNJYQVS3aXaNgKQF-b9zA';
 const mode = 'driving';
 
-const createOrder = gql`
-  mutation order($path: [OrderMarkerInput], $customerId: Int, $cost: Int) {
-    OrderCreate(data: { path: $path, customerId: $customerId, cost: $cost }) {
-      customerId
-      cost
-      status
-      id
-      path {
-        coordinate {
-          latitude
-          longitude
-        }
-        description
-      }
-    }
-  }
-`
-
-const updateUser = gql`
-  mutation Update($email: String, $name: String, $phoneNumber: String, $id: Int, $orders: [String]) {
-    UserUpdate(data: { email: $email, name: $name, phoneNumber: $phoneNumber, id: $id, orders: $orders }) {
-      id
-      phoneNumber
-      email
-      favoritePlaces
-      orders
-      name
-    }
-  }
-`
+const DELTA = {
+  latitudeDelta: 0.004622,
+  longitudeDelta: 0.00681,
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -58,19 +36,14 @@ class Container extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      region: {
-        latitude: 37.78825,
-        longitude: -122.4324,
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681
-      },
+      region: Object.assign({}, DELTA, { latitude: 37.78825, longitude: -122.4324, }),
       userCoordinates: {},
       selector: {},
-      markers: new Array(null, null, null, null, null),
+      markers: [],
       polylines: [],
       search: '',
       selectedInput: null,
-      lastField: 1,
+      addOneMoreAddress: false,
       showMenu: false,
       xPosition: new Animated.Value(0),
       fadeAnim: new Animated.Value(0),
@@ -78,7 +51,6 @@ class Container extends React.Component {
       user: null,
       showProfile: false,
       order: null,
-      socket: null,
       orderView: false,
       distance: 0,
       cost: 30,
@@ -178,12 +150,10 @@ class Container extends React.Component {
     window.setInterval(this.setCurrentPos.bind(this), 10000);
     await this.getUser();
     navigator.geolocation.getCurrentPosition(pos => {
-      const coords = {
+      const coords = Object.assign({}, DELTA, {
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681,
-      };
+      });
       this.setState({
         region: coords,
         userCoordinates: {
@@ -228,12 +198,10 @@ class Container extends React.Component {
     const { lat, lng } = details.geometry.location;
     const description = await this.getAddress(`${lat}, ${lng}`);
 
-    this.map.animateToRegion({
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681,
+    this.map.animateToRegion(Object.assign({}, DELTA, {
         latitude: lat,
         longitude: lng,
-      }, 500);
+      }), 500);
     this.setState({
       selector:
         { coordinate:
@@ -246,12 +214,11 @@ class Container extends React.Component {
 
   addMarker = (marker) => {
     const { markers } = this.state;
-    const index = markers.indexOf(null);
-    if (index === -1) return;
-    const newMarkers = markers.map((prev, i) => i === index ? marker : prev);
+    if (markers.length > 4) return;
+    const newMarkers = markers.concat(marker);
     this.setState({ markers: newMarkers, selector: {}, });
-    if (index > 0) {
-      this.setPolylines(newMarkers.slice(0, index + 1));
+    if (newMarkers.length > 1) {
+      this.setPolylines(newMarkers);
     }
   }
 
@@ -265,38 +232,32 @@ class Container extends React.Component {
     const { markers } = this.state;
     const newMarkers = markers.map((prev, i) => i === index ? marker : prev);
     this.setState({ markers: newMarkers });
-    const pol = newMarkers.filter(marker => marker !== null);
-    if (pol.length > 1) {
-      this.setPolylines(pol);
+    if (newMarkers.length > 1) {
+      this.setPolylines(newMarkers);
     }
   }
 
   onRemoveTextPress = (index) => {
-    const { markers, lastField } = this.state;
-    const newMarkers = markers.filter((marker, i) => i !== index).concat(null);
-    this.setState({ markers: newMarkers, polylines: [], lastField: lastField === 1 ? lastField : lastField - 1 });
-    const polyline = newMarkers.filter(marker => marker !== null);
-    if (polyline.length < 2) {
-      this.setState({ distance: 0, cost: 30 });
+    const { markers } = this.state;
+    const newMarkers = markers.filter((marker, i) => i !== index);
+    this.setState({ markers: newMarkers, polylines: [], });
+    if (newMarkers.length < 2) {
+      this.setState({ distance: 0, cost: 30, addOneMoreAddress: false });
     }
-    return polyline.length > 1 ? this.setPolylines(polyline) : null;
+    return newMarkers.length > 1 ? this.setPolylines(newMarkers) : null;
   }
 
   openAutocomplete = (i, marker = null) => {
     this.setState({ selectedInput: { index: i, marker }});
   }
 
-  addNextField = () => {
-    const { lastField } = this.state;
-    this.setState({ lastField: lastField + 1 });
+  addOneMoreAddress = () => {
+    this.setState({ addOneMoreAddress: true });
   }
 
   goToUserLocation = () => {
     this.setState({ region:
-      Object.assign({}, this.state.userCoordinates, {
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681
-      })
+      Object.assign({}, this.state.userCoordinates, DELTA)
     });
   }
 
@@ -325,12 +286,10 @@ class Container extends React.Component {
     const { lat, lng } = details.geometry.location;
     const { index } = this.state.selectedInput;
     const description = await this.getAddress(`${lat}, ${lng}`);
-    this.map.animateToRegion({
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681,
+    this.map.animateToRegion(Object.assign({}, DELTA, {
         latitude: lat,
         longitude: lng,
-      }, 500);
+      }), 500);
     this.addMarkerByIndex({ coordinate: { longitude: lng, latitude: lat }, description }, index)
     this.setState({
       selector:
@@ -380,7 +339,7 @@ class Container extends React.Component {
 
   orderTaxi = async () => {
     this.showSpinner();
-    const markers = this.state.markers.filter(marker => marker !== null).map(marker => ({ coordinate: marker.coordinate, description: marker.description }));
+    const markers = this.state.markers.map(marker => ({ coordinate: marker.coordinate, description: marker.description }));
     if (markers.length < 2 || !this.state.user) return;
     const { cost } = this.state;
     this.toggleOrderView();
@@ -449,10 +408,7 @@ class Container extends React.Component {
       return;
     }
     this.setState({ region:
-      Object.assign({}, this.state.driverCoordinates, {
-        latitudeDelta: 0.004622,
-        longitudeDelta: 0.00681
-      })
+      Object.assign({}, this.state.driverCoordinates, DELTA)
     });
   }
 
@@ -482,15 +438,15 @@ class Container extends React.Component {
   }
 
   renderOrderFB = () => {
-    const { order, lastField } = this.state;
+    const { order, addOneMoreAddress } = this.state;
     const { markers } = this.state;
-    const markersLength = markers.filter(marker => marker !== null).length;
+    const markersLength = markers.length;
 
     if (order === null) {
       return (
         <FB
           buttonStyle={{
-            bottom: 130 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+            bottom: 130 + (markersLength < 2 ? 0 : (markersLength - 2) * 56) + (+addOneMoreAddress) * 56,
             backgroundColor: '#f5cc12',
           }}
           iconName="long-arrow-right" iconSize={27} iconColor="#000"
@@ -535,38 +491,18 @@ class Container extends React.Component {
 
   render() {
     const { latitude, longitude } = this.state.region;
-    const { userCoordinates, markers } = this.state;
-    const markersLength = markers.filter(marker => marker !== null).length;
+    const { userCoordinates, markers, addOneMoreAddress } = this.state;
+    const markersLength = markers.length;
     return (
       <View style={styles.container}>
-        <Animated.View style={[{ width: 250, right: this.state.xPosition - width, top: 0, bottom: 0, backgroundColor: '#2f2f30', position: 'absolute', }]}>
-          <View style={{ height: 75, backgroundColor: '#1492db', }}>
-            { this.state.user ?
-              <Text
-                style={{ position: 'absolute', right: 10, bottom: 10 }}
-                onPress={this.logout}>
-                <Icon name="sign-out" size={30} color="#fff" style={{ width: 30 }} />
-              </Text> :
-              <Text style={{ position: 'absolute', top: 30, left: 30, fontSize: 16, }} onPress={this.toggleAuthForm}>Sign in</Text>
-            }
-            { this.state.user ?
-              <Text
-                style={{ position: 'absolute', bottom: 10, left: 10, }}
-                onPress={this.toggleProfile}>
-                <Icon name="user-circle" size={40} color="#fff" style={{ width: 40 }} />
-                  <Text style={{ color: '#fff', marginLeft: 30 }}>{ this.state.user.phoneNumber }</Text>
-              </Text> : null
-            }
-          </View>
-          <TouchableOpacity onPress={this.triggerOrdersList} style={styles.menuRow}>
-            <Icon name="bookmark" size={25} color="#1492db" style={styles.menuIcon} />
-            <Text style={styles.menuText}>My trips</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => Linking.openURL('mailto:react.native.taxi@gmail.com?subject=Support&body=body')} style={styles.menuRow}>
-            <Icon name="support" size={25} color="#1492db" style={styles.menuIcon} />
-            <Text style={styles.menuText}>Service Support</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        <Menu
+          xPosition={this.state.xPosition}
+          toggleProfile={this.toggleProfile}
+          user={this.state.user}
+          triggerOrdersList={this.triggerOrdersList}
+          toggleAuthForm={this.toggleAuthForm}
+          logout={this.logout}
+        />
         <Animated.View style={[styles.mapView, { width, left: this.state.xPosition, top: 0, right: 0, bottom: 0, }]}>
           <MapView
             ref={(map) => this.map = map}
@@ -615,7 +551,7 @@ class Container extends React.Component {
                 <MapView.Callout {...this.state.selector}>
                   <View style={{ position: 'relative', }}>
                     <Text style={{ marginRight: 30, }}>{`${this.state.selector.description.split(', ')[0]}, ${this.state.selector.description.split(', ')[1]}`}</Text>
-                    {this.state.markers.indexOf(null) === -1 ? null :
+                    { markersLength > 4 ? null :
                       <View
                       style={{
                         position: 'absolute',
@@ -722,7 +658,7 @@ class Container extends React.Component {
               onPress={this.autocompletePress}
             />
           </View>
-          <FB buttonStyle={{ bottom: 200 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56, backgroundColor: '#fff', }}
+          <FB buttonStyle={{ bottom: 200 + (markersLength < 2 ? 0 : (markersLength - 2) * 56) + (+addOneMoreAddress) * 56, backgroundColor: '#fff', }}
             iconName="location-arrow" iconSize={35} iconColor="#1492db"
             onPress={this.goToUserLocation}
           />
@@ -732,7 +668,7 @@ class Container extends React.Component {
               right: 25,
               width: 170,
               height: 45,
-              bottom: 135 + (this.state.lastField - 1) * 56 + (markersLength <= 2 ? 0 : markersLength - 2) * 56,
+              bottom: 135 + (markersLength < 2 ? 0 : (markersLength - 2) * 56) + (+addOneMoreAddress) * 56,
               justifyContent: 'center',
               backgroundColor: 'rgba(255, 255, 255, 0.5)',
               borderRadius: 100,
@@ -744,11 +680,11 @@ class Container extends React.Component {
           <Order
             openAutocomplete={this.openAutocomplete}
             onRemoveTextPress={this.onRemoveTextPress}
-            addNextField={this.addNextField}
+            addNextField={this.addOneMoreAddress}
             user={this.state.user}
             userId={this.state.user !== null && this.state.user.id}
             markers={this.state.markers}
-            lastField={this.state.lastField}
+            addOneMoreAddress={this.state.addOneMoreAddress}
             hasActiveOrder={this.hasActiveOrder}
             orderView={this.state.orderView}
             toggleOrderView={this.toggleOrderView}
@@ -760,10 +696,9 @@ class Container extends React.Component {
           />
         </Animated.View>
         { this.state.orderView && <Animated.View style={[styles.header, { opacity: this.state.fadeAnim }]}>
-            <Text style={{ marginTop: 30, marginLeft: 20, width: 40 }} onPress={() => this.toggleOrderView()}><Icon name="angle-down" size={35} color="#fff" style={{ width: 35 }} /></Text>
-          </Animated.View>}
-          {
-            this.state.selectedInput ?
+            <Text style={{ marginTop: 30, marginLeft: 20, width: 40 }} onPress={() => this.toggleOrderView()}><Icon name="angle-down" size={35} color="#fff" /></Text>
+          </Animated.View> }
+          { this.state.selectedInput ?
             <GooglePlacesAutocomplete
               placeholder='Search'
               minLength={2}
@@ -777,14 +712,8 @@ class Container extends React.Component {
               }}
               getDefaultValue={() => {
                 const { marker, index } = this.state.selectedInput;
-                if (!marker) {
-                  return '';
-                } else {
-                  const value = marker.description;
-                  return value;
-                }
+                return !marker ? '' : marker.description;
               }}
-              debounce={200}
               fetchDetails={true}
               autoFocus={true}
               styles={{
@@ -842,21 +771,6 @@ const styles = StyleSheet.create({
     top: 75,
     position: 'absolute',
   },
-  menuRow: {
-    position: 'relative',
-  },
-  menuIcon: {
-    width: 25,
-    left: 10,
-    position: 'absolute',
-    top: 12
-  },
-  menuText: {
-    color: '#fff',
-    height: 50,
-    lineHeight: 50,
-    marginLeft: 70,
-  }
 });
 
 const ContainerComponent = compose(
